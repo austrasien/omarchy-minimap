@@ -82,7 +82,7 @@ Item {
     if (n.image) icon = minimap.iconUrl(n.image)
     else if (n.appIcon) icon = minimap.iconUrl(n.appIcon)
     else if (n.app) icon = minimap.appIcon(String(n.app))
-    pending = pending.concat([{ icon: icon, glyph: String(n.glyph || ""), text: text }])
+    pending = pending.concat([{ id: String(n.id), icon: icon, glyph: String(n.glyph || ""), text: text }])
     if (!current) showNext()
   }
 
@@ -112,6 +112,21 @@ Item {
   Rectangle {
     anchors.fill: parent
     color: Qt.darker(Color.background, 1.15)
+  }
+
+  // Clicking acts like clicking its toast (hidden by hideToasts): the
+  // notification's default action, e.g. opening what it announces.
+  Process { id: invoker }
+  MouseArea {
+    anchors.fill: parent
+    enabled: view.current !== null && view.onScreen
+    cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+    onClicked: {
+      invoker.command = ["omarchy-shell", "notifications", "invoke", view.current.id]
+      invoker.running = true
+      run.stop()
+      view.showNext()
+    }
   }
 
   // The notification's icon, else its glyph, else a bell.
