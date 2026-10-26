@@ -26,6 +26,8 @@ Item {
     return paused
   }
   readonly property bool playing: player !== null && player.isPlaying
+  // Nothing to show without a player: the minimap skips the map then.
+  readonly property bool empty: player === null
   readonly property real progress: player && player.lengthSupported && player.length > 0
     ? Math.max(0, Math.min(1, player.position / player.length)) : 0
 

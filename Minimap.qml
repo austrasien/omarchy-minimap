@@ -877,9 +877,45 @@ Item {
   property var maps: []
   readonly property bool hovered: hover.hovered
   // The configured map, or the first one when it is not installed.
+  // A map may say it has nothing to show (`empty`: media with no player,
+  // notifications with none on screen). The wheel and `next` skip it, and
+  // while the chosen map is empty the next one stands in, the choice itself
+  // kept. Its own notifications still show.
+  property var emptyMaps: ({})
+  function noteEmpty(id, empty) {
+    if (!!emptyMaps[id] === !!empty) return
+    var e = Object.assign({}, emptyMaps)
+    if (empty) e[id] = true
+    else delete e[id]
+    emptyMaps = e
+  }
+  readonly property var shownMaps: {
+    var e = emptyMaps
+    var out = maps.filter(function(m) { return !e[m.id] })
+    return out.length ? out : maps
+  }
   readonly property string mapId: {
-    for (var i = 0; i < maps.length; i++) if (maps[i].id === cfg.map) return cfg.map
-    return maps.length ? maps[0].id : cfg.map
+    var chosen = cfg.map
+    var known = false
+    for (var i = 0; i < maps.length; i++) if (maps[i].id === chosen) known = true
+    if (!known) return maps.length ? maps[0].id : chosen
+    if (!emptyMaps[chosen]) return chosen
+    // The first non-empty map after the chosen one, in list order.
+    var at = 0
+    for (var j = 0; j < maps.length; j++) if (maps[j].id === chosen) at = j
+    for (var k = 1; k < maps.length; k++) {
+      var m = maps[(at + k) % maps.length]
+      if (!emptyMaps[m.id]) return m.id
+    }
+    return chosen
+  }
+  // Steps through the maps that have something to show, from the one shown.
+  function stepMap(step) {
+    var list = shownMaps
+    var at = -1
+    for (var i = 0; i < list.length; i++) if (list[i].id === mapId) at = i
+    if (at < 0) { setMap(list[0].id); return }
+    setMap(list[((at + step) % list.length + list.length) % list.length].id)
   }
 
   Process {
@@ -1424,6 +1460,12 @@ Item {
                 maskSpreadAtMin: 1.0
               }
               Component.onCompleted: setSource(modelData.url, { minimap: root })
+              onLoaded: if (item.empty !== undefined) root.noteEmpty(modelData.id, item.empty)
+              Connections {
+                target: mapLoader.item
+                ignoreUnknownSignals: true
+                function onEmptyChanged() { root.noteEmpty(mapLoader.modelData.id, mapLoader.item.empty) }
+              }
               onStatusChanged: if (status === Loader.Error) console.warn("minimap: map failed to load:", modelData.url)
             }
           }
@@ -1838,7 +1880,7 @@ Item {
             if (wheelPause.running) { travel = 0; return }
             travel += wheel.angleDelta.y !== 0 ? wheel.angleDelta.y : wheel.pixelDelta.y
             if (Math.abs(travel) < 120) return
-            root.setMap(Model.nextMap(root.maps, root.mapId, travel > 0 ? -1 : 1))
+            root.stepMap(travel > 0 ? -1 : 1)
             travel = 0
             wheelPause.restart()
           }
@@ -1884,7 +1926,7 @@ Item {
 
     Column {
       Repeater {
-        model: root.maps
+        model: root.shownMaps
         delegate: Rectangle {
           id: row
           required property var modelData
@@ -1953,7 +1995,7 @@ Item {
     function show(): void { root.saveConfig({ visible: true }) }
     function hide(): void { root.saveConfig({ visible: false }) }
     function toggle(): void { root.saveConfig({ visible: !root.shown }) }
-    function next(): void { root.setMap(Model.nextMap(root.maps, root.mapId, 1)) }
+    function next(): void { root.stepMap(1) }
     function settings(): void { mapMenu.open = false; settingsPop.toggle() }
     function peek(): void { root.peek() }
     function notify(map: string): void { root.notify(map) }

@@ -4,7 +4,8 @@ A round, game-style minimap pinned to a screen corner of the Omarchy shell.
 
 - **Switching maps**: the wheel over the disc turns the middle circle to the
   previous (up) or next (down) map, as a coin; a trackpad flick turns it
-  once.
+  once. Maps with nothing to show (media with no player, notifications with
+  none on screen) are skipped, and stand aside while empty.
 - **Weather map**: Esri dark/light gray basemap, RainViewer radar (latest
   scan at rest, the last two hours looped while hovered), place names on top,
   you in the middle, and an Open-Meteo nowcast line ("pluie dans 20 min",
@@ -142,7 +143,9 @@ config), `location`, `forecast`, `allWindows`, `currentWorkspace`,
 `setMap(id)`, `saveConfig(patch)`, `notify(this, durationMs)`,
 `iconUrl(name)`, `appIcon(appId)`. Every map stays loaded
 in the background; `minimap.shownMap` is the id on screen. After editing a
-map's QML, run `omarchy-restart-shell`. The
+map's QML, run `omarchy-restart-shell`. A map with nothing to show can say
+so with `readonly property bool empty`; the wheel, `next` and the map list
+skip it then. The
 shell has no Qt network access: fetch with `Process` and curl.
 
 ### Notifications

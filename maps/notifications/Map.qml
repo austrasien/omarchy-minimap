@@ -21,6 +21,8 @@ Item {
   property var temps: []            // notifications in turn
   property var stack: []            // urgent ones, the latest last
   property var current: null        // { id, file, icon, glyph, text, persistent }
+  // Nothing to show between notifications: the minimap skips the map then.
+  readonly property bool empty: current === null && temps.length === 0 && stack.length === 0
   property var seen: ({})           // file names already taken
   property real offset: 0           // degrees the text's head has travelled
 
