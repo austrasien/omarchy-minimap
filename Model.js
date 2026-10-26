@@ -12,6 +12,16 @@ var MAX_ZOOM = 10
 
 var CORNERS = ["bottom-right", "bottom-left", "top-right", "top-left"]
 var MAPS = ["weather", "workspace"]
+// What the map menu lists, in MAPS order. Glyphs are Nerd Font icons.
+var MAP_INFO = [
+  { name: "weather", label: "Météo", glyph: String.fromCodePoint(0xF0595) },
+  { name: "workspace", label: "Bureaux", glyph: String.fromCodePoint(0xF0379) }
+]
+
+function mapInfo(name) {
+  for (var i = 0; i < MAP_INFO.length; i++) if (MAP_INFO[i].name === name) return MAP_INFO[i]
+  return MAP_INFO[0]
+}
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)) }
 
@@ -663,6 +673,8 @@ if (typeof module !== "undefined") {
     normalizeConfig: normalizeConfig,
     parseLocation: parseLocation,
     nextMap: nextMap,
+    mapInfo: mapInfo,
+    MAP_INFO: MAP_INFO,
     selectorAngle: selectorAngle,
     worldPixel: worldPixel,
     tilesFor: tilesFor,

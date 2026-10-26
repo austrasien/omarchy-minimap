@@ -63,7 +63,10 @@ screen edges. The window's corner on the minimap's side is masked too, and
 that window's Hyprland border (active colour when it has focus, inactive
 otherwise, same width) is carried around the cut.
 
-Right-click, or the two buttons in the corner facing the screen, switch maps.
+The button in the corner facing the screen shows the current map; clicking
+it lists the maps to pick from. Right-click on the disc cycles them.
+Clicking the clock opens the settings (corner, monitor, size, opacity,
+cutout, weather zoom and basemap), written to the config straight away.
 
 ## Data
 
@@ -82,8 +85,8 @@ radar frames older than three hours are pruned.
 
 ## Config
 
-`~/.config/omarchy/minimap.json`, reloaded on save. The selector and IPC
-write back to it.
+`~/.config/omarchy/minimap.json`, reloaded on save. The selector, the settings
+and IPC write back to it.
 
 ```json
 {
@@ -112,6 +115,8 @@ whose launcher cannot be told apart (two accounts of the same web app).
 ```bash
 omarchy-shell austraz.minimap toggle        # show / hide
 omarchy-shell austraz.minimap next          # cycle maps
+omarchy-shell austraz.minimap maps          # open / close the map list
+omarchy-shell austraz.minimap settings      # open / close the settings
 omarchy-shell austraz.minimap map workspace
 omarchy-shell austraz.minimap corner top-left
 omarchy-shell austraz.minimap zoomIn

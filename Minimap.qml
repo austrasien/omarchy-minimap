@@ -915,8 +915,7 @@ Item {
     mask: Region {
       item: disc
       shape: RegionShape.Ellipse
-      Region { item: weatherButton; shape: RegionShape.Ellipse }
-      Region { item: workspaceButton; shape: RegionShape.Ellipse }
+      Region { item: mapButton; shape: RegionShape.Ellipse }
     }
 
     // The wallpaper ring, under the disc.
@@ -1007,7 +1006,7 @@ Item {
       y: root.cy - height / 2
       width: root.cfg.size
       height: root.cfg.size
-      opacity: hover.hovered ? 1 : root.cfg.opacity
+      opacity: hover.hovered || mapMenu.open || settingsPop.open ? 1 : root.cfg.opacity
 
       Behavior on opacity { NumberAnimation { duration: 200 } }
 
@@ -1123,7 +1122,13 @@ Item {
         radius: height / 2
         color: Color.background
         border.width: 1
-        border.color: Qt.alpha(Color.foreground, 0.25)
+        border.color: settingsPop.open ? Color.accent : Qt.alpha(Color.foreground, 0.25)
+
+        MouseArea {
+          anchors.fill: parent
+          cursorShape: Qt.PointingHandCursor
+          onClicked: { mapMenu.open = false; settingsPop.toggle() }
+        }
 
         Text {
           id: clock
@@ -1147,29 +1152,26 @@ Item {
       }
 
       // Map selector, in the square's corner facing the screen, just outside
-      // the ring so it never covers the dial or the workspace arcs.
-      component MapButton: Rectangle {
-        id: button
-        property string name: ""
-        property string glyph: ""
-        property real offset: 0
-        readonly property bool active: root.cfg.map === name
-        readonly property real a: (Model.selectorAngle(root.cfg.corner) + offset) * Math.PI / 180
+      // the ring so it never covers the dial or the workspace arcs. It shows
+      // the current map; clicking it lists the maps.
+      Rectangle {
+        id: mapButton
+        readonly property real a: Model.selectorAngle(root.cfg.corner) * Math.PI / 180
         readonly property real dist: disc.width / 2 + root.ring + 10
         width: 20; height: 20
         radius: 10
         x: disc.width / 2 + dist * Math.sin(a) - width / 2
         y: disc.height / 2 - dist * Math.cos(a) - height / 2
-        color: active ? Color.accent : Color.background
+        color: mapMenu.open ? Color.accent : Color.background
         border.width: 1
-        border.color: active ? Color.accent : Qt.alpha(Color.foreground, 0.4)
-        opacity: hover.hovered || active ? 1 : 0.55
+        border.color: mapMenu.open ? Color.accent : Qt.alpha(Color.foreground, 0.4)
+        opacity: hover.hovered || mapMenu.open ? 1 : 0.55
         Behavior on opacity { NumberAnimation { duration: 150 } }
 
         Text {
           anchors.centerIn: parent
-          text: button.glyph
-          color: button.active ? Color.background : Color.foreground
+          text: Model.mapInfo(root.cfg.map).glyph
+          color: mapMenu.open ? Color.background : Color.foreground
           font.family: Style.fontFamily
           font.pixelSize: 12
         }
@@ -1177,12 +1179,75 @@ Item {
         MouseArea {
           anchors.fill: parent
           cursorShape: Qt.PointingHandCursor
-          onClicked: root.setMap(button.name)
+          onClicked: { settingsPop.open = false; mapMenu.toggle() }
         }
       }
+    }
+  }
 
-      MapButton { id: weatherButton; name: "weather"; glyph: "\u{F0595}"; offset: -10 }
-      MapButton { id: workspaceButton; name: "workspace"; glyph: "\u{F0379}"; offset: 10 }
+  // The list of maps, from the selector.
+  Popover {
+    id: mapMenu
+    target: mapButton
+    cornerRight: root.cornerRight
+    cornerBottom: root.cornerBottom
+    padding: 4
+
+    Column {
+      Repeater {
+        model: Model.MAP_INFO
+        delegate: Rectangle {
+          id: row
+          required property var modelData
+          readonly property bool current: root.cfg.map === modelData.name
+          width: 150
+          height: 28
+          color: rowHover.hovered ? Qt.alpha(Color.accent, 0.18) : "transparent"
+          radius: Style.cornerRadius
+
+          HoverHandler { id: rowHover }
+
+          Row {
+            anchors.verticalCenter: parent.verticalCenter
+            x: 8
+            spacing: 10
+            Text {
+              width: 16
+              text: row.modelData.glyph
+              color: row.current ? Color.accent : Color.popups.text
+              font.family: Style.fontFamily
+              font.pixelSize: 14
+            }
+            Text {
+              text: row.modelData.label
+              color: row.current ? Color.accent : Color.popups.text
+              font.family: Style.fontFamily
+              font.pixelSize: 12
+              font.bold: row.current
+            }
+          }
+
+          MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            onClicked: { root.setMap(row.modelData.name); mapMenu.open = false }
+          }
+        }
+      }
+    }
+  }
+
+  // Settings, from the clock: beside the disc, on the screen's side.
+  Popover {
+    id: settingsPop
+    target: disc
+    beside: true
+    cornerRight: root.cornerRight
+    cornerBottom: root.cornerBottom
+
+    Settings {
+      cfg: root.cfg
+      onSave: function(patch) { root.saveConfig(patch) }
     }
   }
 
@@ -1193,6 +1258,8 @@ Item {
     function hide(): void { root.saveConfig({ visible: false }) }
     function toggle(): void { root.saveConfig({ visible: !root.shown }) }
     function next(): void { root.setMap(Model.nextMap(root.cfg.map, 1)) }
+    function settings(): void { mapMenu.open = false; settingsPop.toggle() }
+    function maps(): void { settingsPop.open = false; mapMenu.toggle() }
     function map(name: string): void { root.setMap(name) }
     function corner(name: string): void { root.saveConfig({ corner: name }) }
     function zoomIn(): void { root.setZoom(root.cfg.zoom + 1) }
