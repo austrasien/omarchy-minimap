@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# fetch-tiles CACHE_DIR URL FILE [URL FILE ...]
+# Downloads the tiles not cached yet (in parallel), then prints every FILE
+# that exists, one per line, for the minimap to mark ready. Radar frames
+# older than three hours are pruned on the way.
+set -u
+cache=$1
+shift
+mkdir -p "$cache"
+find "$cache/radar" -mindepth 1 -maxdepth 1 -mmin +180 -exec rm -rf {} + 2>/dev/null
+
+args=()
+pairs=("$@")
+for ((i = 0; i + 1 < ${#pairs[@]}; i += 2)); do
+  url=${pairs[i]} file=${pairs[i+1]}
+  [[ -s $file ]] || args+=(-o "$file" "$url")
+done
+
+if ((${#args[@]})); then
+  curl -fsS -Z --parallel-max 8 --create-dirs --max-time 20 \
+    -A "omarchy-minimap/0.1 (+https://github.com/austrasien)" "${args[@]}" 2>/dev/null
+fi
+
+for ((i = 1; i < ${#pairs[@]}; i += 2)); do
+  [[ -s ${pairs[i]} ]] && printf '%s\n' "${pairs[i]}"
+done
+exit 0

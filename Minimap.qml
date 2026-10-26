@@ -1,0 +1,1175 @@
+import QtQuick
+import QtQuick.Effects
+import QtQuick.Shapes
+import Quickshell
+import Quickshell.Io
+import Quickshell.Wayland
+import Quickshell.Hyprland
+import Quickshell.Services.UPower
+import qs.Commons
+import "Model.js" as Model
+
+// A round, game-style minimap pinned to a screen corner. Two maps behind a
+// selector on the rim: weather radar and the current workspace's terrain.
+// The rim is a 24 h day/night dial; the battery marks the hour it lasts until.
+Item {
+  id: root
+
+  property var shell: null
+  property var manifest: null
+
+  readonly property string home: Quickshell.env("HOME")
+  readonly property string configPath: home + "/.config/omarchy/minimap.json"
+  readonly property string locationPath: home + "/.local/state/omarchy/settings/weather.json"
+
+  // ------------------------------------------------------------ config
+
+  property var rawConfig: ({})
+  readonly property var cfg: Model.normalizeConfig(rawConfig)
+  readonly property bool shown: rawConfig.visible !== false
+
+  function saveConfig(patch) {
+    var next = ({})
+    for (var k in rawConfig) next[k] = rawConfig[k]
+    for (var p in patch) next[p] = patch[p]
+    rawConfig = next
+    configFile.setText(JSON.stringify(next, null, 2) + "\n")
+  }
+
+  FileView {
+    id: configFile
+    path: root.configPath
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: {
+      try { root.rawConfig = JSON.parse(text() || "{}") } catch (e) { console.warn("minimap: bad config", e) }
+    }
+  }
+
+  // --------------------------------------------------------------- clock
+
+  property var now: new Date()
+  readonly property real nowSec: now.getTime() / 1000
+
+  Timer {
+    interval: 15000
+    running: true
+    repeat: true
+    onTriggered: root.now = new Date()
+  }
+
+  // ------------------------------------------------------------- battery
+
+  readonly property var battery: UPower.displayDevice
+  readonly property int batteryPercent: battery && battery.isPresent ? Math.round(Number(battery.percentage || 0) * 100) : -1
+  readonly property bool charging: battery && battery.isPresent && !UPower.onBattery
+    && battery.state === UPowerDeviceState.Charging
+  // The dial shows the battery as one stripe from now, then a dashed one
+  // after it. On battery: solid to the estimated empty time. Charging:
+  // orange to full, then dashed for how long a full charge would last.
+  // Plugged in and full: dashed for how long it would last from now. The
+  // dashed runtimes use the median discharge rate of the last week
+  // (UPower's rate history).
+  readonly property string batteryMode: !battery || !battery.isPresent ? ""
+    : (UPower.onBattery ? "discharging" : (charging ? "charging" : "estimate"))
+  readonly property real batterySeconds: {
+    if (batteryMode === "discharging") return Number(battery.timeToEmpty || 0)
+    if (batteryMode === "charging") return Number(battery.timeToFull || 0)
+    return 0
+  }
+  readonly property real batteryAfterSeconds: {
+    if (dischargeWatts <= 0) return 0
+    if (batteryMode === "charging") return Number(battery.energyCapacity || battery.energy || 0) / dischargeWatts * 3600
+    if (batteryMode === "estimate") return Number(battery.energy || 0) / dischargeWatts * 3600
+    return 0
+  }
+  property real dischargeWatts: 0
+
+  Process {
+    id: rateProc
+    command: ["sh", "-c", "gdbus call --system --dest org.freedesktop.UPower"
+      + " --object-path \"$(upower -e | grep -m1 /battery_)\""
+      + " --method org.freedesktop.UPower.Device.GetHistory rate 604800 4000"]
+    stdout: StdioCollector {
+      onStreamFinished: {
+        var w = Model.dischargeRate(text, Date.now() / 1000, 7)
+        if (w > 0) root.dischargeWatts = w
+      }
+    }
+  }
+
+  Timer {
+    interval: 600000
+    running: root.shown && (root.batteryMode === "estimate" || root.batteryMode === "charging")
+    repeat: true
+    triggeredOnStart: true
+    onTriggered: if (!rateProc.running) rateProc.running = true
+  }
+
+  // ------------------------------------------------------------- weather
+
+  property var location: null
+  property string radarHost: ""
+  property var radarFrames: []
+  property var forecast: null
+  property real radarFetchedAt: 0
+
+  FileView {
+    path: root.locationPath
+    watchChanges: true
+    printErrors: false
+    onFileChanged: reload()
+    onLoaded: {
+      root.location = Model.parseLocation(text())
+      root.fetchForecast()
+    }
+  }
+
+  // The shell does not use Qt's network stack; everything goes through curl
+  // like the other plugins.
+  Process {
+    id: radarProc
+    command: ["curl", "-fsS", "--max-time", "10", "https://api.rainviewer.com/public/weather-maps.json"]
+    stdout: StdioCollector {
+      onStreamFinished: {
+        var parsed = Model.parseRadarFrames(text)
+        if (parsed.frames.length === 0) return
+        root.radarHost = parsed.host
+        root.radarFrames = parsed.frames
+        root.radarFetchedAt = Date.now() / 1000
+      }
+    }
+  }
+
+  Process {
+    id: forecastProc
+    stdout: StdioCollector {
+      onStreamFinished: {
+        var f = Model.parseForecast(text)
+        if (f) root.forecast = f
+      }
+    }
+  }
+
+  function fetchRadar() {
+    if (!radarProc.running) radarProc.running = true
+  }
+
+  function fetchForecast() {
+    if (!location || forecastProc.running) return
+    forecastProc.command = ["curl", "-fsS", "--max-time", "10",
+      "https://api.open-meteo.com/v1/forecast?latitude=" + location.lat + "&longitude=" + location.lon
+      + "&minutely_15=precipitation&forecast_minutely_15=8&daily=sunrise,sunset"
+      + "&timezone=auto&forecast_days=1&timeformat=unixtime"]
+    forecastProc.running = true
+  }
+
+  // ------------------------------------------------------------ tile cache
+
+  readonly property string cacheDir: (Quickshell.env("XDG_CACHE_HOME") || home + "/.cache") + "/austraz-minimap"
+  readonly property string fetchTiles: Qt.resolvedUrl("bin/fetch-tiles").toString().replace(/^[a-z]+:\/\//, "")
+  property var tilesReady: ({})
+  property var tileQueue: []
+  property var tileBatch: ({})
+
+  function requestTiles(list) {
+    var queued = tileQueue.slice()
+    var seen = ({})
+    for (var i = 0; i < queued.length; i++) seen[queued[i].file] = true
+    for (var j = 0; j < list.length; j++) {
+      var t = list[j]
+      if (tilesReady[t.file] || seen[t.file]) continue
+      seen[t.file] = true
+      queued.push(t)
+    }
+    tileQueue = queued
+    pumpTiles()
+  }
+
+  function pumpTiles() {
+    if (tileProc.running || tileQueue.length === 0) return
+    var batch = tileQueue.slice(0, 64)
+    tileQueue = tileQueue.slice(64)
+    var args = [fetchTiles, cacheDir]
+    for (var i = 0; i < batch.length; i++) args.push(batch[i].url, batch[i].file)
+    tileBatch = ({})
+    tileProc.command = args
+    tileProc.running = true
+  }
+
+  Process {
+    id: tileProc
+    stdout: SplitParser {
+      onRead: function(line) { root.tileBatch[line] = true }
+    }
+    onExited: {
+      var next = ({})
+      for (var k in root.tilesReady) next[k] = true
+      for (var f in root.tileBatch) next[f] = true
+      root.tilesReady = next
+      root.pumpTiles()
+    }
+  }
+
+  readonly property bool weatherActive: shown && cfg.map === "weather"
+  onWeatherActiveChanged: if (weatherActive && nowSec - radarFetchedAt > 300) fetchRadar()
+
+  Timer {
+    interval: 300000
+    running: root.weatherActive
+    repeat: true
+    triggeredOnStart: true
+    onTriggered: root.fetchRadar()
+  }
+
+  // Sunrise/sunset feed the dial whatever the map, so this one always runs.
+  Timer {
+    interval: 600000
+    running: root.shown
+    repeat: true
+    onTriggered: root.fetchForecast()
+  }
+
+  // ------------------------------------------------------ workspace terrain
+
+  property int revision: 0
+  property var lastFocus: ({})
+  // { session: { state, pids, address } }, fed by the `agent` IPC call.
+  property var agents: ({})
+  // Windows Hyprland flagged urgent, by normalized address.
+  property var urgentAddresses: ({})
+
+  function normalizeAddress(a) { return Model.normalizeAddress(a) }
+
+  function ipcWindow(tl) {
+    var ipc = tl.lastIpcObject || {}
+    return {
+      address: normalizeAddress(tl.address),
+      appId: tl.wayland && tl.wayland.appId ? tl.wayland.appId : String(ipc["class"] || ""),
+      title: String(tl.title || ""),
+      // Right after a shell restart activeToplevel is unset until focus
+      // moves; fall back to the Wayland activated flag like Spaces does.
+      focused: Hyprland.activeToplevel ? Hyprland.activeToplevel === tl : !!(tl.wayland && tl.wayland.activated),
+      floating: ipc.floating === true,
+      at: ipc.at && ipc.at.length === 2 ? ipc.at : null,
+      size: ipc.size && ipc.size.length === 2 ? ipc.size : null,
+      pid: Number(ipc.pid) || 0,
+      workspace: ipc.workspace ? Number(ipc.workspace.id) : (tl.workspace ? tl.workspace.id : 0),
+      scratchpad: !!(ipc.workspace && ipc.workspace.name === "special:scratchpad")
+    }
+  }
+
+  readonly property var allWindows: {
+    root.revision
+    var out = []
+    var values = Hyprland.toplevels.values
+    for (var i = 0; i < values.length; i++) out.push(ipcWindow(values[i]))
+    return out
+  }
+
+  readonly property int currentWorkspace: Hyprland.focusedWorkspace ? Hyprland.focusedWorkspace.id : -1
+
+  readonly property var monitorRect: {
+    root.revision
+    var mon = Hyprland.focusedMonitor
+    if (!mon) return null
+    var ipc = mon.lastIpcObject || {}
+    var scale = Number(mon.scale) || 1
+    var w = mon.width / scale
+    var h = mon.height / scale
+    if (Number(ipc.transform) % 2 === 1) { var t = w; w = h; h = t }
+    return { x: mon.x, y: mon.y, width: w, height: h }
+  }
+
+  readonly property real terrainSize: cfg.size - 2 * ringWidth - 2 * (bandWidth + bandGap)
+  readonly property int bandWidth: 18
+  readonly property int bandGap: 3
+
+  readonly property var terrain: {
+    var here = []
+    for (var i = 0; i < allWindows.length; i++)
+      if (allWindows[i].workspace === currentWorkspace) here.push(allWindows[i])
+    var tiles = Model.discLayout(here, terrainSize, monitorRect)
+    for (var j = 0; j < tiles.length; j++) tiles[j].icon = windowIcon(tiles[j])
+    return { id: currentWorkspace, windows: tiles }
+  }
+
+  // App icon for a window class, resolved the way Spaces does it so both
+  // show the same picture: desktop entry by id candidates, by
+  // StartupWMClass, by Exec address for web apps, then Quickshell's
+  // heuristic; the icon name goes through
+  // an index of the icon files on disk (Qt's theme lookup misses
+  // ~/.local/share/icons), then Quickshell. Cached per class.
+  property var iconCache: ({})
+  property var iconIndex: ({})
+  property var pendingIconIndex: ({})
+
+  function desktopEntryFor(appId) {
+    var ids = Model.appIdCandidates(appId)
+    for (var c = 0; c < ids.length; c++) {
+      var byId = DesktopEntries.byId(ids[c])
+      if (byId) return byId
+    }
+    var apps = DesktopEntries.applications.values
+    for (var i = 0; i < apps.length; i++)
+      if (String(apps[i].startupClass || "") === appId) return apps[i]
+    // Web apps: the launcher whose Exec opens the window's address.
+    var hint = Model.webAppHint(appId)
+    if (hint) {
+      var execs = []
+      for (var j = 0; j < apps.length; j++) {
+        var cmd = apps[j].command || []
+        execs.push([String(apps[j].execString || "")].concat(Array.prototype.slice.call(cmd).map(String)).join(" "))
+      }
+      var at = Model.bestWebAppExecIndex(execs, hint)
+      return at >= 0 ? apps[at] : null
+    }
+    return DesktopEntries.heuristicLookup(appId)
+  }
+
+  function iconUrl(name) {
+    var value = String(name || "")
+    if (value === "") return ""
+    if (value.indexOf("file://") === 0 || value.indexOf("image://") === 0) return value
+    if (value.charAt(0) === "/") return "file://" + value
+    if (iconIndex[value]) return "file://" + iconIndex[value]
+    return Quickshell.iconPath(value, true)
+  }
+
+  function appIcon(appId) {
+    if (!appId) return ""
+    if (iconCache[appId] !== undefined) return iconCache[appId]
+    // Per-class icons from the config win (e.g. two accounts of one web app).
+    var forced = cfg.iconOverrides[appId]
+    if (forced) return iconCache[appId] = iconUrl(forced)
+    var entry = desktopEntryFor(appId)
+    var url = iconUrl(entry && entry.icon ? entry.icon : appId)
+    if (!url) url = iconUrl(appId.split(".").pop().toLowerCase())
+    iconCache[appId] = url || ""
+    return iconCache[appId]
+  }
+
+  Process {
+    id: iconScan
+    command: ["bash", "-c", [
+      'dirs="$HOME/.icons $HOME/.local/share/icons";',
+      'IFS=":"; for d in ${XDG_DATA_DIRS:-/usr/local/share:/usr/share}; do dirs="$dirs $d/icons"; done; unset IFS;',
+      'for base in $dirs; do [[ -d $base ]] && find "$base" -path "*/apps/*" \\( -name "*.svg" -o -name "*.png" \\) 2>/dev/null; done;',
+      'find /usr/share/pixmaps -maxdepth 1 \\( -name "*.svg" -o -name "*.png" \\) 2>/dev/null'
+    ].join(" ")]
+    stdout: SplitParser {
+      onRead: function(line) {
+        var path = String(line || "").trim()
+        if (!path) return
+        var name = Model.iconNameFromPath(path)
+        var have = root.pendingIconIndex[name]
+        if (!have || Model.iconPathScore(path) > Model.iconPathScore(have)) root.pendingIconIndex[name] = path
+      }
+    }
+    onStarted: root.pendingIconIndex = ({})
+    onExited: {
+      root.iconIndex = root.pendingIconIndex
+      root.iconCache = ({})
+      root.revision++
+    }
+  }
+
+  // Browser windows: the current tab's favicon (bin/favicons.py, from
+  // Spaces), else the app icon.
+  property var faviconMap: ({})
+  property int faviconMisses: 0
+
+  function windowIcon(win) {
+    if (Model.isBrowserWindow(win.appId)) {
+      var fav = faviconMap[win.address]
+      if (fav && fav.source) return iconUrl(fav.source)
+    }
+    return appIcon(win.appId)
+  }
+
+  Process {
+    id: faviconQuery
+    command: ["python3", Qt.resolvedUrl("bin/favicons.py").toString().replace(/^[a-z]+:\/\//, "")]
+    stdout: StdioCollector {
+      onStreamFinished: {
+        var data = ({})
+        try { data = JSON.parse(String(text || "{}")) || ({}) } catch (e) {}
+        root.faviconMap = data
+        root.revision++
+        // Chromium writes the favicon a moment after the title: retry a few
+        // times while some browser window still has none.
+        var expected = 0, got = 0
+        for (var i = 0; i < root.allWindows.length; i++) if (Model.isBrowserWindow(root.allWindows[i].appId)) expected++
+        for (var k in data) if (data[k] && data[k].source) got++
+        if (got < expected && root.faviconMisses < 3) { root.faviconMisses++; faviconRetry.restart() }
+        else root.faviconMisses = 0
+      }
+    }
+  }
+
+  function startFaviconQuery() { if (!faviconQuery.running) faviconQuery.running = true }
+
+  Timer { id: faviconDebounce; interval: 180; onTriggered: { root.faviconMisses = 0; root.startFaviconQuery() } }
+  Timer { id: faviconRetry; interval: 2000; onTriggered: root.startFaviconQuery() }
+  Timer { interval: 400; running: true; onTriggered: root.startFaviconQuery() }
+
+  Component.onCompleted: iconScan.running = true
+
+  Connections {
+    target: DesktopEntries
+    function onApplicationsChanged() { iconRescan.restart() }
+  }
+
+  Timer {
+    id: iconRescan
+    interval: 1500
+    onTriggered: if (!iconScan.running) iconScan.running = true
+  }
+
+  // Agents, the same way Spaces tracks them (see Model.js, agents).
+  readonly property real startedAt: Date.now() / 1000
+  readonly property var markers: Model.agentWindowStates(agents, allWindows)
+
+  function activeAddress() {
+    return Hyprland.activeToplevel ? normalizeAddress(Hyprland.activeToplevel.address) : ""
+  }
+
+  // An agent is in view when one of its windows is focused or on the
+  // workspace on screen.
+  function agentInView(agent) {
+    var addresses = Model.agentAddresses(agent, Model.agentWindowsByPid(allWindows))
+    if (!addresses.length) return false
+    var active = activeAddress()
+    for (var i = 0; i < addresses.length; i++) {
+      if (addresses[i] === active) return true
+      for (var w = 0; w < allWindows.length; w++) {
+        var win = allWindows[w]
+        if (win.address !== addresses[i]) continue
+        if (win.workspace === currentWorkspace || (win.scratchpad && scratchpadShown)) return true
+      }
+    }
+    return false
+  }
+
+  property string lastActiveEvent: ""
+
+  // The scratchpad (special:scratchpad) is on screen.
+  property bool scratchpadShown: false
+  onScratchpadShownChanged: Qt.callLater(acknowledgeAgents)
+
+  // Desk of an agent's window: the smallest numbered one, the scratchpad
+  // (negative id) only if nothing else, as in Spaces.
+  function smallerDesk(a, b) {
+    if (!a) return b
+    if (!b) return a
+    if (a > 0 && b > 0) return a < b ? a : b
+    if (a > 0) return a
+    if (b > 0) return b
+    return a > b ? a : b
+  }
+
+  function deskForAgent(agent) {
+    var addresses = Model.agentAddresses(agent, Model.agentWindowsByPid(allWindows))
+    var best = 0
+    for (var i = 0; i < addresses.length; i++)
+      for (var w = 0; w < allWindows.length; w++)
+        if (allWindows[w].address === addresses[i] && allWindows[w].workspace !== 0) best = smallerDesk(best, allWindows[w].workspace)
+    return best
+  }
+
+  // Alerts not in view: waiting first, then done. Drives the LEDs and
+  // Super+Caps Lock (focusAlert).
+  function alertDesk() {
+    var waiting = 0, done = 0
+    for (var k in agents) {
+      var agent = agents[k]
+      if (!agent || agentInView(agent)) continue
+      var ws = deskForAgent(agent)
+      if (!ws) continue
+      if (agent.state === "waiting") waiting = smallerDesk(waiting, ws)
+      else if (agent.state === "done") done = smallerDesk(done, ws)
+    }
+    return waiting || done
+  }
+
+  function focusWorkspace(id) {
+    // Hyprland here takes Lua dispatches (hl.dsp.*), as Spaces sends them;
+    // the classic "workspace N" form is rejected.
+    var target = id < 0 ? "special:scratchpad" : String(id)
+    Hyprland.dispatch('hl.dsp.focus({ workspace = "' + target + '" })')
+  }
+
+  function focusAlert() {
+    var id = alertDesk()
+    if (!id) return false
+    focusWorkspace(id)
+    return true
+  }
+
+  // Caps Lock and the fingerprint ring: blink while a waiting agent is out
+  // of view, stay lit while a done one is, off otherwise.
+  readonly property string ledMode: {
+    root.revision
+    var waiting = false, done = false
+    for (var k in agents) {
+      var agent = agents[k]
+      if (!agent) continue
+      if (!Model.agentAddresses(agent, Model.agentWindowsByPid(allWindows)).length) continue
+      if (agentInView(agent)) continue
+      if (agent.state === "waiting") waiting = true
+      else if (agent.state === "done") done = true
+    }
+    return waiting ? "blink" : (done ? "on" : "off")
+  }
+  // Each call to alert-leds writes the wanted mode, and calls launched in
+  // the same instant may land in any order; so changes are coalesced and only
+  // the settled mode is sent. Also sent once at start to fix a stale LED.
+  onLedModeChanged: ledSync.restart()
+  Timer {
+    id: ledSync
+    interval: 150
+    running: true
+    onTriggered: Quickshell.execDetached([Qt.resolvedUrl("bin/alert-leds").toString().replace(/^[a-z]+:\/\//, ""), root.ledMode])
+  }
+
+  // Workspace numbers while Super is held (bound like Spaces' showNumbers).
+  property bool numbersShown: false
+
+  function applyAgent(session, state, pidsCsv) {
+    var next = ({})
+    for (var k in agents) if (k !== session) next[k] = agents[k]
+    if (state === "end") { agents = next; return }
+    var reported = Model.normalizeAgentState(state)
+    if (!reported) return
+    var pids = Model.parsePids(pidsCsv)
+    var prev = agents[session]
+    // Keep the window the agent was pinned to while it still exists, so a
+    // single-instance terminal does not spill the badge onto its siblings.
+    var address = prev && prev.address ? prev.address : ""
+    if (address && !allWindows.some(function(w) { return w.address === address })) address = ""
+    if (!address) address = Model.agentPinAddress(pids, allWindows, activeAddress())
+    var agent = { state: reported, pids: pids, address: address }
+    // Finishing on the desk you are looking at needs no done blink.
+    if (reported === "done" && agentInView(agent)) agent.state = "idle"
+    next[session] = agent
+    agents = next
+  }
+
+  // Seeing a finished agent's window or desk clears its blink.
+  function acknowledgeAgents() {
+    var changed = false, next = ({})
+    for (var k in agents) {
+      var agent = agents[k]
+      if (agent.state === "done" && agentInView(agent)) {
+        agent = { state: "idle", pids: agent.pids, address: agent.address }
+        changed = true
+      }
+      next[k] = agent
+    }
+    if (changed) agents = next
+  }
+  onCurrentWorkspaceChanged: Qt.callLater(acknowledgeAgents)
+
+  function setUrgent(address, urgent) {
+    var key = normalizeAddress(address)
+    if (key === "" || (!!urgentAddresses[key]) === urgent) return
+    var next = ({})
+    for (var k in urgentAddresses) if (k !== key) next[k] = true
+    if (urgent) next[key] = true
+    urgentAddresses = next
+  }
+
+  // A crashed reporter never sends "end": once a minute, drop working or
+  // waiting claims whose agent process is gone.
+  property var liveAgentPids: ({})
+  Timer {
+    interval: 60000
+    running: true
+    repeat: true
+    onTriggered: {
+      var pids = Model.agentProcessIds(root.agents)
+      if (!pids.length || agentProbe.running) return
+      root.liveAgentPids = ({})
+      agentProbe.command = ["sh", "-c", "for p in \"$@\"; do [ -d /proc/$p ] && echo $p; done; echo probed", "sh"].concat(pids.map(String))
+      agentProbe.running = true
+    }
+  }
+  Process {
+    id: agentProbe
+    stdout: SplitParser {
+      onRead: function(line) {
+        var text = String(line || "").trim()
+        if (text === "probed") root.agents = Model.pruneDeadAgents(root.agents, Object.keys(root.liveAgentPids))
+        else if (Number(text) > 1) root.liveAgentPids[text] = true
+      }
+    }
+  }
+
+  // The other occupied workspaces, as arcs around the disc (the current one
+  // is the disc itself).
+  readonly property var workspaceArcs: {
+    root.revision
+    var byId = ({})
+    for (var i = 0; i < allWindows.length; i++) {
+      var w = allWindows[i]
+      if (w.workspace === 0 || w.workspace === currentWorkspace) continue
+      if (w.workspace < 0 && !w.scratchpad) continue
+      if (!byId[w.workspace]) byId[w.workspace] = { id: w.workspace, apps: [], addresses: [] }
+      byId[w.workspace].apps.push(w.appId.split(".").pop())
+      byId[w.workspace].addresses.push(w.address)
+    }
+    var list = []
+    for (var id in byId) {
+      var ws = byId[id]
+      // Like Spaces: a waiting agent or a Hyprland-urgent window makes the
+      // desk urgent (red), a finished agent makes it done (accent).
+      var st = Model.strongestState(ws.addresses, markers)
+      if (st !== "waiting" && ws.addresses.some(function(a) { return root.urgentAddresses[a] })) st = "waiting"
+      list.push({ id: ws.id, current: ws.id === currentWorkspace, count: ws.addresses.length,
+        apps: ws.apps, state: st })
+    }
+    // Numbered desks in order, the scratchpad last.
+    list.sort(function(a, b) { return (a.id < 0) - (b.id < 0) || a.id - b.id })
+    return Model.workspaceArcs(list, 4)
+  }
+
+  function focusWindow(address) {
+    Hyprland.dispatch('hl.dsp.focus({ window = "address:0x' + normalizeAddress(address) + '" })')
+  }
+
+  function noteFocus() {
+    var active = Hyprland.activeToplevel
+    if (!active) return
+    var next = ({})
+    for (var k in lastFocus) next[k] = lastFocus[k]
+    next[normalizeAddress(active.address)] = Date.now() / 1000
+    lastFocus = next
+  }
+
+  Timer {
+    id: refreshDebounce
+    interval: 120
+    onTriggered: {
+      Hyprland.refreshToplevels()
+      Hyprland.refreshMonitors()
+      root.revision++
+    }
+  }
+
+  Connections {
+    target: Hyprland
+    function onActiveToplevelChanged() { root.noteFocus(); Qt.callLater(root.acknowledgeAgents) }
+    function onRawEvent(event) {
+      switch (event.name) {
+      case "urgent":
+        root.setUrgent(event.data, true)
+        break
+      case "activewindowv2":
+        // Hyprland re-sends this on every title change of the focused
+        // window, so only a real focus change hides held numbers.
+        if (event.data !== root.lastActiveEvent) root.numbersShown = false
+        root.lastActiveEvent = event.data
+        root.setUrgent(event.data, false)
+        refreshDebounce.restart()
+        break
+      case "activespecial":
+      case "activespecialv2":
+        root.scratchpadShown = String(event.data).indexOf("special:scratchpad") !== -1
+        refreshDebounce.restart()
+        break
+      case "closewindow":
+        root.numbersShown = false
+        root.setUrgent(event.data, false)
+        refreshDebounce.restart()
+        faviconDebounce.restart()
+        break
+      case "windowtitle":
+      case "windowtitlev2":
+        faviconDebounce.restart()
+        break
+      case "openwindow":
+        root.numbersShown = false
+        faviconDebounce.restart()
+        refreshDebounce.restart()
+        break
+      case "openlayer":
+        // Like Spaces: anything that moves the view drops held numbers, as the
+        // Super release may never reach us after a Super+key chord.
+        root.numbersShown = false
+        break
+      case "workspace":
+      case "workspacev2":
+        root.numbersShown = false
+        refreshDebounce.restart()
+        break
+      case "movewindow":
+      case "movewindowv2":
+      case "changefloatingmode":
+      case "focusedmon":
+      case "fullscreen":
+        refreshDebounce.restart()
+        break
+      }
+    }
+  }
+
+  readonly property bool workspaceActive: shown && cfg.map === "workspace"
+
+  // Tiles resize without a dedicated event (a neighbour opens, a split
+  // moves), so poll while the terrain is on screen.
+  Timer {
+    interval: 2000
+    running: root.workspaceActive
+    repeat: true
+    triggeredOnStart: true
+    onTriggered: refreshDebounce.restart()
+  }
+
+  // --------------------------------------------------------------- window
+
+  readonly property int ringWidth: 13
+  readonly property var targetScreen: {
+    var screens = Quickshell.screens
+    var want = cfg.monitor || (Hyprland.focusedMonitor ? Hyprland.focusedMonitor.name : "")
+    for (var i = 0; i < screens.length; i++) if (screens[i].name === want) return screens[i]
+    return screens.length ? screens[0] : null
+  }
+
+  function setMap(name) { if (name === "weather" || name === "workspace") saveConfig({ map: name }) }
+  function setZoom(z) { saveConfig({ zoom: Math.max(Model.MIN_ZOOM, Math.min(Model.MAX_ZOOM, z)) }) }
+
+  // ------------------------------------------------------------- cutout
+  //
+  // The minimap does not sit on the window under it: a ring as wide as
+  // Hyprland's gaps_out shows the wallpaper around the disc, as if the disc
+  // were cut out of that window, and the disc keeps that same distance from
+  // the screen edges.
+
+  property int gapsOut: 10
+  property int borderSize: 2
+  property color activeBorder: "#7aa2f7"
+  property color inactiveBorder: "#aa595959"
+  property string wallpaper: ""
+  readonly property int ring: cfg.cutout ? gapsOut : 0
+  readonly property int discMargin: cfg.margin < 0 ? gapsOut : cfg.margin
+  readonly property int windowMargin: Math.max(0, discMargin - ring)
+  // Radius of the cut: the disc plus the wallpaper ring. The window's
+  // border is drawn just outside it, so the window gets that much room on
+  // its inner sides.
+  readonly property real cutR: cfg.size / 2 + ring
+  readonly property int borderRoom: ring > 0 ? borderSize : 0
+  readonly property int windowSize: cfg.size + 2 * ring + borderRoom
+  readonly property bool cornerRight: cfg.corner.indexOf("right") !== -1
+  readonly property bool cornerBottom: cfg.corner.indexOf("bottom") === 0
+  // Disc centre in window coordinates: cutR from the anchored edges.
+  readonly property real cx: cornerRight ? windowSize - cutR : cutR
+  readonly property real cy: cornerBottom ? windowSize - cutR : cutR
+
+  // Hyprland's outer gap and window borders: "css" gives the gap per side,
+  // borders are "AARRGGBB ... angle" gradients (the first colour is used).
+  Process {
+    id: gapsQuery
+    command: ["sh", "-c", "for o in general:gaps_out general:border_size general:col.active_border general:col.inactive_border; do hyprctl getoption \"$o\" -j | tr -d '\\n'; echo; done"]
+    running: true
+    stdout: SplitParser {
+      onRead: function(line) {
+        try {
+          var o = JSON.parse(line)
+          if (o.option === "general:gaps_out") {
+            var v = o.css !== undefined ? parseInt(String(o.css), 10) : parseInt(o.int, 10)
+            if (!isNaN(v) && v >= 0) root.gapsOut = v
+          } else if (o.option === "general:border_size") {
+            if (o.int >= 0) root.borderSize = o.int
+          } else if (o.gradient) {
+            var hex = String(o.gradient).split(" ")[0]
+            if (/^[0-9a-fA-F]{8}$/.test(hex)) {
+              if (o.option === "general:col.active_border") root.activeBorder = "#" + hex
+              else root.inactiveBorder = "#" + hex
+            }
+          }
+        } catch (e) {}
+      }
+    }
+  }
+
+  // The window the minimap is cut out of: the one under the disc centre on
+  // the current workspace, the focused one first.
+  readonly property var underWindow: {
+    var o = windowOrigin
+    var px = o.mx + o.x + cx, py = o.my + o.y + cy
+    var best = null
+    for (var i = 0; i < allWindows.length; i++) {
+      var w = allWindows[i]
+      if (w.workspace !== currentWorkspace || !w.at || !w.size) continue
+      if (px < w.at[0] || py < w.at[1] || px > w.at[0] + w.size[0] || py > w.at[1] + w.size[1]) continue
+      if (!best || w.focused) best = w
+    }
+    return best
+  }
+
+  // Follows Omarchy's current background (a symlink that theme and
+  // background switches repoint).
+  Process {
+    id: wallpaperQuery
+    command: ["readlink", "-f", root.home + "/.local/state/omarchy/current/background"]
+    stdout: StdioCollector { onStreamFinished: { var p = text.trim(); if (p) root.wallpaper = "file://" + p } }
+  }
+  Timer {
+    interval: 10000
+    running: root.shown && root.cfg.cutout
+    repeat: true
+    triggeredOnStart: true
+    onTriggered: if (!wallpaperQuery.running) wallpaperQuery.running = true
+  }
+
+  // Where the window sits on its screen, to line the wallpaper up with the
+  // real one: anchored edges, minus the zones other layers reserve (bar).
+  readonly property var windowOrigin: {
+    root.revision
+    var scr = targetScreen
+    if (!scr) return { x: 0, y: 0, w: 0, h: 0 }
+    var reserved = [0, 0, 0, 0]
+    var mons = Hyprland.monitors.values
+    for (var i = 0; i < mons.length; i++) {
+      if (mons[i].name !== scr.name) continue
+      var r = mons[i].lastIpcObject ? mons[i].lastIpcObject.reserved : null
+      if (r && r.length === 4) reserved = r
+    }
+    var left = cfg.corner.indexOf("left") !== -1
+    var top = cfg.corner.indexOf("top") === 0
+    var mx = 0, my = 0
+    for (var j = 0; j < mons.length; j++) if (mons[j].name === scr.name) { mx = mons[j].x; my = mons[j].y }
+    return {
+      x: left ? reserved[0] + windowMargin : scr.width - reserved[2] - windowMargin - windowSize,
+      y: top ? reserved[1] + windowMargin : scr.height - reserved[3] - windowMargin - windowSize,
+      w: scr.width, h: scr.height, mx: mx, my: my
+    }
+  }
+
+  PanelWindow {
+    id: win
+    screen: root.targetScreen
+    visible: root.shown && root.targetScreen !== null
+    color: "transparent"
+    implicitWidth: root.windowSize
+    implicitHeight: root.windowSize
+
+    anchors {
+      top: root.cfg.corner.indexOf("top") === 0
+      bottom: root.cfg.corner.indexOf("bottom") === 0
+      left: root.cfg.corner.indexOf("left") !== -1
+      right: root.cfg.corner.indexOf("right") !== -1
+    }
+    margins {
+      top: root.windowMargin
+      bottom: root.windowMargin
+      left: root.windowMargin
+      right: root.windowMargin
+    }
+
+    WlrLayershell.namespace: "austraz-minimap"
+    WlrLayershell.layer: WlrLayer.Top
+    WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+    exclusionMode: ExclusionMode.Normal
+    exclusiveZone: 0
+
+    // Only the disc and the selector take input; the rest stays click-through.
+    mask: Region {
+      item: disc
+      shape: RegionShape.Ellipse
+      Region { item: weatherButton; shape: RegionShape.Ellipse }
+      Region { item: workspaceButton; shape: RegionShape.Ellipse }
+    }
+
+    // The wallpaper ring, under the disc.
+    Item {
+      id: cutout
+      visible: root.ring > 0 && root.wallpaper !== ""
+      anchors.fill: parent
+      layer.enabled: visible
+      layer.effect: MultiEffect {
+        maskEnabled: true
+        maskSource: cutoutMask
+        maskThresholdMin: 0.5
+        maskSpreadAtMin: 1.0
+      }
+
+      Image {
+        x: -root.windowOrigin.x
+        y: -root.windowOrigin.y
+        width: root.windowOrigin.w
+        height: root.windowOrigin.h
+        source: root.wallpaper
+        fillMode: Image.PreserveAspectCrop
+        sourceSize.width: root.windowOrigin.w * (root.targetScreen ? root.targetScreen.devicePixelRatio : 1)
+        asynchronous: true
+        cache: true
+        smooth: true
+      }
+    }
+
+    // The cut: the disc plus the ring, and the window's corner on the side
+    // the minimap sits, from the disc centre out to that corner.
+    Item {
+      id: cutoutMask
+      anchors.fill: parent
+      layer.enabled: true
+      visible: false
+      Rectangle {
+        x: root.cx - root.cutR; y: root.cy - root.cutR
+        width: 2 * root.cutR; height: width
+        radius: width / 2
+        color: "black"
+      }
+      Rectangle {
+        x: root.cornerRight ? root.cx : 0
+        y: root.cornerBottom ? root.cy : 0
+        width: root.cornerRight ? parent.width - root.cx : root.cx
+        height: root.cornerBottom ? parent.height - root.cy : root.cy
+        color: "black"
+      }
+    }
+
+    // The cut window's border, carried around the cut: active colour when
+    // it has focus, inactive otherwise, only where that window really is
+    // (its border box) and not across the masked corner.
+    Item {
+      id: cutBorder
+      readonly property var w: root.underWindow
+      visible: root.ring > 0 && w !== null
+      x: w ? w.at[0] - root.borderSize - root.windowOrigin.mx - root.windowOrigin.x : 0
+      y: w ? w.at[1] - root.borderSize - root.windowOrigin.my - root.windowOrigin.y : 0
+      width: w ? w.size[0] + 2 * root.borderSize : 0
+      height: w ? w.size[1] + 2 * root.borderSize : 0
+      clip: true
+
+      Shape {
+        x: -cutBorder.x; y: -cutBorder.y
+        width: win.width; height: win.height
+        preferredRendererType: Shape.CurveRenderer
+        ShapePath {
+          strokeColor: cutBorder.w && cutBorder.w.focused ? root.activeBorder : root.inactiveBorder
+          strokeWidth: root.borderSize
+          fillColor: "transparent"
+          capStyle: ShapePath.FlatCap
+          PathAngleArc {
+            centerX: root.cx; centerY: root.cy
+            radiusX: root.cutR + root.borderSize / 2; radiusY: radiusX
+            // Skip the quarter facing the screen corner (masked).
+            startAngle: root.cornerRight ? (root.cornerBottom ? 90 : 0) : (root.cornerBottom ? 180 : 270)
+            sweepAngle: 270
+          }
+        }
+      }
+    }
+
+    Item {
+      id: disc
+      x: root.cx - width / 2
+      y: root.cy - height / 2
+      width: root.cfg.size
+      height: root.cfg.size
+      opacity: hover.hovered ? 1 : root.cfg.opacity
+
+      Behavior on opacity { NumberAnimation { duration: 200 } }
+
+      HoverHandler { id: hover }
+
+      readonly property real mapSize: width - 2 * root.ringWidth
+
+      Rectangle {
+        anchors.fill: parent
+        radius: width / 2
+        color: Color.background
+      }
+
+      Item {
+        id: content
+        x: root.ringWidth
+        y: root.ringWidth
+        width: disc.mapSize
+        height: disc.mapSize
+        layer.enabled: true
+        layer.effect: MultiEffect {
+          maskEnabled: true
+          maskSource: circleMask
+          maskThresholdMin: 0.5
+          maskSpreadAtMin: 1.0
+        }
+
+        MouseArea {
+          anchors.fill: parent
+          acceptedButtons: Qt.RightButton
+          onClicked: root.setMap(Model.nextMap(root.cfg.map, 1))
+          onWheel: function(wheel) {
+            if (root.cfg.map !== "weather") return
+            root.setZoom(root.cfg.zoom + (wheel.angleDelta.y > 0 ? 1 : -1))
+          }
+        }
+
+        WeatherMap {
+          anchors.fill: parent
+          opacity: root.cfg.map === "weather" ? 1 : 0
+          visible: opacity > 0
+          Behavior on opacity { NumberAnimation { duration: 250 } }
+          location: root.location
+          zoom: root.cfg.zoom
+          basemapStyle: root.cfg.basemap === "auto" ? (Model.isLightColor(Color.background) ? "light" : "dark") : root.cfg.basemap
+          radarHost: root.radarHost
+          frames: root.radarFrames
+          animate: hover.hovered && root.cfg.map === "weather"
+          nowcast: root.forecast ? Model.nowcastLine(root.forecast.rain, root.nowSec) : ""
+          nowSec: root.nowSec
+          cacheDir: root.cacheDir
+          ready: root.tilesReady
+          onWantedChanged: if (visible) root.requestTiles(wanted)
+          onVisibleChanged: if (visible) root.requestTiles(wanted)
+        }
+
+        WorkspaceMap {
+          anchors.fill: parent
+          opacity: root.cfg.map === "workspace" ? 1 : 0
+          visible: opacity > 0
+          Behavior on opacity { NumberAnimation { duration: 250 } }
+          id: wsMap
+          terrain: root.terrain
+          numbersShown: root.numbersShown
+          arcs: root.workspaceArcs
+          bandWidth: root.bandWidth
+          bandGap: root.bandGap
+          markers: root.markers
+          lastFocus: root.lastFocus
+          fogSince: root.startedAt
+          nowSec: root.nowSec
+          onFocusWindow: function(address) { root.focusWindow(address) }
+          onFocusWorkspace: function(id) { root.focusWorkspace(id) }
+        }
+      }
+
+      Item {
+        id: circleMask
+        width: content.width
+        height: content.height
+        layer.enabled: true
+        visible: false
+        Rectangle { anchors.fill: parent; radius: width / 2; color: "black" }
+      }
+
+      Rectangle {
+        x: content.x - 0.5; y: content.y - 0.5
+        width: content.width + 1; height: content.height + 1
+        radius: width / 2
+        color: "transparent"
+        border.width: 1
+        border.color: Qt.alpha(Color.foreground, 0.25)
+      }
+
+      Rim {
+        anchors.fill: parent
+        ringWidth: root.ringWidth
+        now: root.now
+        daylight: root.forecast ? Model.daylightArc(root.forecast.sunrise, root.forecast.sunset) : null
+        daytime: Model.isDaytime(root.nowSec, root.forecast ? root.forecast.sunrise : 0, root.forecast ? root.forecast.sunset : 0)
+        battery: root.batteryPercent
+        batterySeconds: root.batterySeconds
+        batteryAfterSeconds: root.batteryAfterSeconds
+        batteryMode: root.batteryMode
+      }
+
+      // Clock, WoW-style, on the bottom of the ring.
+      Rectangle {
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        width: clock.implicitWidth + 12
+        height: clock.implicitHeight + 2
+        radius: height / 2
+        color: Color.background
+        border.width: 1
+        border.color: Qt.alpha(Color.foreground, 0.25)
+
+        Text {
+          id: clock
+          anchors.centerIn: parent
+          // On battery the level is always there; hovering adds the times.
+          text: {
+            var t = Model.clockText(root.now)
+            if (root.batteryPercent < 0) return t
+            if (!hover.hovered) return root.batteryMode === "discharging" ? t + " · " + root.batteryPercent + "%" : t
+            var out = t + " · " + root.batteryPercent + "%"
+            if (root.batteryMode === "discharging" && root.batterySeconds > 0) out += " " + Model.durationText(root.batterySeconds)
+            if (root.batteryMode === "charging" && root.batterySeconds > 0) out += " ↑" + Model.durationText(root.batterySeconds)
+            if (root.batteryAfterSeconds > 0) out += " ~" + Model.durationText(root.batteryAfterSeconds)
+            return out
+          }
+          color: Color.foreground
+          font.family: Style.fontFamily
+          font.pixelSize: 11
+          font.bold: true
+        }
+      }
+
+      // Map selector, in the square's corner facing the screen, just outside
+      // the ring so it never covers the dial or the workspace arcs.
+      component MapButton: Rectangle {
+        id: button
+        property string name: ""
+        property string glyph: ""
+        property real offset: 0
+        readonly property bool active: root.cfg.map === name
+        readonly property real a: (Model.selectorAngle(root.cfg.corner) + offset) * Math.PI / 180
+        readonly property real dist: disc.width / 2 + root.ring + 10
+        width: 20; height: 20
+        radius: 10
+        x: disc.width / 2 + dist * Math.sin(a) - width / 2
+        y: disc.height / 2 - dist * Math.cos(a) - height / 2
+        color: active ? Color.accent : Color.background
+        border.width: 1
+        border.color: active ? Color.accent : Qt.alpha(Color.foreground, 0.4)
+        opacity: hover.hovered || active ? 1 : 0.55
+        Behavior on opacity { NumberAnimation { duration: 150 } }
+
+        Text {
+          anchors.centerIn: parent
+          text: button.glyph
+          color: button.active ? Color.background : Color.foreground
+          font.family: Style.fontFamily
+          font.pixelSize: 12
+        }
+
+        MouseArea {
+          anchors.fill: parent
+          cursorShape: Qt.PointingHandCursor
+          onClicked: root.setMap(button.name)
+        }
+      }
+
+      MapButton { id: weatherButton; name: "weather"; glyph: "\u{F0595}"; offset: -10 }
+      MapButton { id: workspaceButton; name: "workspace"; glyph: "\u{F0379}"; offset: 10 }
+    }
+  }
+
+  IpcHandler {
+    target: "austraz.minimap"
+
+    function show(): void { root.saveConfig({ visible: true }) }
+    function hide(): void { root.saveConfig({ visible: false }) }
+    function toggle(): void { root.saveConfig({ visible: !root.shown }) }
+    function next(): void { root.setMap(Model.nextMap(root.cfg.map, 1)) }
+    function map(name: string): void { root.setMap(name) }
+    function corner(name: string): void { root.saveConfig({ corner: name }) }
+    function zoomIn(): void { root.setZoom(root.cfg.zoom + 1) }
+    function zoomOut(): void { root.setZoom(root.cfg.zoom - 1) }
+    function refresh(): void { root.fetchRadar(); root.fetchForecast() }
+    // Render the disc to a PNG, for checking the look without a screen grab.
+    // Jump to the desk the LEDs are signalling (bound to Super+Caps Lock).
+    function focusAlert(): string { return root.focusAlert() ? "ok" : "none" }
+    // What the minimap knows about agents and alerts, for diagnosis.
+    function alerts(): string { return JSON.stringify({ leds: root.ledMode, desk: root.alertDesk(), agents: root.agents }) }
+    function showNumbers(): void { root.numbersShown = true }
+    function hideNumbers(): void { root.numbersShown = false }
+    // Same call as Spaces' IPC, sent by the agent reporters to both.
+    function agent(session: string, state: string, pids: string): void { root.applyAgent(session, state, pids) }
+    function snapshot(path: string): void { disc.grabToImage(function(r) { r.saveToFile(path) }) }
+  }
+}
