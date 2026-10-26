@@ -708,6 +708,15 @@ Item {
     return Model.workspaceArcs(list, 4)
   }
 
+  // Sends a window to another workspace without following it; the
+  // scratchpad arc (negative id) is the special workspace.
+  function moveWindow(address, workspace) {
+    var target = workspace < 0 ? '"special:scratchpad"' : String(workspace)
+    Hyprland.dispatch("hl.dsp.window.move({ workspace = " + target + ', window = "address:0x'
+      + normalizeAddress(address) + '", follow = false })')
+    refreshDebounce.restart()
+  }
+
   function focusWindow(address) {
     Hyprland.dispatch('hl.dsp.focus({ window = "address:0x' + normalizeAddress(address) + '" })')
   }

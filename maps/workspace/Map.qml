@@ -20,5 +20,6 @@ Item {
     nowSec: view.minimap.nowSec
     onFocusWindow: function(address) { view.minimap.focusWindow(address) }
     onFocusWorkspace: function(id) { view.minimap.focusWorkspace(id) }
+    onMoveWindow: function(address, workspace) { view.minimap.moveWindow(address, workspace) }
   }
 }

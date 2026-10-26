@@ -28,6 +28,20 @@ Item {
 
   signal focusWindow(string address)
   signal focusWorkspace(int id)
+  signal moveWindow(string address, int workspace)
+
+  // Dragging a window: its icon follows the pointer, the arc under it
+  // lights up, and dropping it there sends the window to that workspace.
+  property string dragAddress: ""
+  property string dragIcon: ""
+  property point dragPoint: Qt.point(0, 0)
+  property var dragTiles: []
+  readonly property var dropArc: {
+    if (map.dragAddress === "") return null
+    var dx = map.dragPoint.x - width / 2, dy = map.dragPoint.y - height / 2
+    if (Math.sqrt(dx * dx + dy * dy) < width / 2 - map.inset) return null
+    return Model.arcAt(map.arcs, Model.pointAngle(map.dragPoint.x, map.dragPoint.y, width))
+  }
 
   // Shared blink clocks so every marker of a kind pulses in step.
   property real slowPulse: 1
@@ -121,7 +135,8 @@ Item {
       opacity: !arc ? 0 : (arc.leaving ? 1 + (map.pulseFor(arc.state) - 1) * map.settle : map.pulseFor(arc.state))
       preferredRendererType: Shape.CurveRenderer
       ShapePath {
-        strokeColor: arcShape.arc ? map.arcColor(arcShape.arc) : "transparent"
+        strokeColor: !arcShape.arc ? "transparent"
+          : (map.dropArc && map.dropArc.id === arcShape.arc.id ? Color.accent : map.arcColor(arcShape.arc))
         strokeWidth: map.bandWidth
         fillColor: "transparent"
         capStyle: ShapePath.FlatCap
@@ -297,7 +312,8 @@ Item {
         width: modelData.w; height: modelData.h
         // A working window sits above the others so its rings cross them.
         z: marker === "working" ? 3 : (modelData.floating ? 2 : 1)
-        opacity: modelData.focused || marker !== "" ? 1
+        opacity: map.dragAddress === modelData.address ? 0.35
+          : modelData.focused || marker !== "" ? 1
           : Model.fogOpacity(map.lastFocus[modelData.address] || map.fogSince, map.nowSec, 0.3)
 
         Behavior on opacity { NumberAnimation { duration: 600 } }
@@ -391,10 +407,26 @@ Item {
         MouseArea {
           anchors.fill: parent
           enabled: terrain.interactive
-          // No hover here: the band's area below tracks the pointer alone,
-          // so the workspace label clears as soon as it leaves the band.
-          cursorShape: Qt.PointingHandCursor
-          onClicked: map.focusWindow(tile.modelData.address)
+          // No hover here: the band's area below tracks the pointer alone.
+          cursorShape: map.dragAddress === tile.modelData.address ? Qt.ClosedHandCursor : Qt.PointingHandCursor
+          preventStealing: true
+          property point pressAt: Qt.point(0, 0)
+          onPressed: function(mouse) { pressAt = Qt.point(mouse.x, mouse.y) }
+          onPositionChanged: function(mouse) {
+            if (map.dragAddress === "" && Math.hypot(mouse.x - pressAt.x, mouse.y - pressAt.y) > 6) {
+              map.dragIcon = tile.modelData.icon || ""
+              map.dragTiles = map.terrain ? map.terrain.windows : []
+              map.dragAddress = tile.modelData.address
+            }
+            if (map.dragAddress !== "") map.dragPoint = mapToItem(map, mouse.x, mouse.y)
+          }
+          onReleased: {
+            if (map.dragAddress === "") { map.focusWindow(tile.modelData.address); return }
+            var target = map.dropArc
+            if (target) map.moveWindow(map.dragAddress, target.id)
+            map.dragAddress = ""
+          }
+          onCanceled: map.dragAddress = ""
         }
 
         // Every window shows its app icon in the middle of its visible part.
@@ -493,7 +525,8 @@ Item {
 
   TerrainLayer {
     id: arriving
-    tiles: map.terrain ? map.terrain.windows : []
+    // Frozen during a drag: a refresh would rebuild the tile being dragged.
+    tiles: map.dragAddress !== "" ? map.dragTiles : (map.terrain ? map.terrain.windows : [])
     readonly property real a: map.arrivingAngle * Math.PI / 180
     readonly property real k: 1 - map.t
     scale: 1 - (1 - map.dotScale) * k
@@ -524,5 +557,19 @@ Item {
       font.pixelSize: 30
       font.bold: true
     }
+  }
+
+  // The dragged window's icon, under the pointer.
+  Image {
+    visible: map.dragAddress !== "" && status === Image.Ready
+    width: 26; height: 26
+    x: map.dragPoint.x - width / 2
+    y: map.dragPoint.y - height / 2
+    z: 10
+    source: map.dragIcon
+    sourceSize.width: 64; sourceSize.height: 64
+    smooth: true
+    mipmap: true
+    opacity: 0.9
   }
 }

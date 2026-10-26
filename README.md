@@ -13,7 +13,8 @@ A round, game-style minimap pinned to a screen corner of the Omarchy shell.
   icons along the band ("+n" when they do not fit; holding Super shows the
   desk numbers instead). An arc darkens from grey to black the longer its
   desk goes unvisited (from 5 min, black at 2 h; kept in
-  `~/.local/state/austraz-minimap/desks.json`). Click switches to it. Every window shows
+  `~/.local/state/austraz-minimap/desks.json`). Click switches to it; drag a window from the disc onto an arc to send it
+  to that workspace (you stay where you are). Every window shows
   its app icon in the middle of its visible part (desktop entry, StartupWMClass for web apps) and windows
   untouched for a while fade out. Coding agents show the same way on
   their window and on their workspace's arc, no markers: a fast red blink
