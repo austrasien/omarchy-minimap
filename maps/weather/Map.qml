@@ -4,13 +4,29 @@ import "../../Model.js" as Model
 
 // Built-in map: rain radar over the basemap around the weather location,
 // with the nowcast line. The minimap fetches the radar, the forecast and
-// the tiles; the wheel zooms.
+// the tiles; the wheel zooms. As a notification (rain alert, or
+// `omarchy-shell austraz.minimap radar`) it plays the end of the radar loop
+// within the notification's 5 s, ending on now.
 Item {
   id: view
   required property var minimap
   // Maps stay loaded in the background: only fetch tiles when on screen.
   readonly property bool shown: minimap.shownMap === "weather"
-  onShownChanged: if (shown) minimap.requestTiles(weather.wanted)
+  onShownChanged: {
+    if (!shown) return
+    if (replayPending) { replayPending = false; weather.replay(replayFrames) }
+    minimap.requestTiles(weather.wanted)
+  }
+
+  // The 5 s notification: the coin turn (~0.5 s), 8 frames 0.45 s apart,
+  // then a moment on the latest.
+  readonly property int replayFrames: 8
+  property bool replayPending: false
+  function playRadar() {
+    if (shown) weather.replay(replayFrames)
+    else replayPending = true
+    minimap.notify(view)
+  }
 
   // Rain alert: X minutes (cfg.rainAlert) before the forecast rain starts,
   // ask the minimap to show this map; once per dry spell. The forecast
@@ -26,7 +42,7 @@ Item {
     onTriggered: {
       if (Date.now() / 1000 < view.rainAt - view.minimap.cfg.rainAlert * 60) return
       view.announced = true
-      view.minimap.notify(view)
+      view.playRadar()
     }
   }
 

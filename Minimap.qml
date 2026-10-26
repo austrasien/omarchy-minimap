@@ -1531,6 +1531,13 @@ Item {
     function settings(): void { mapMenu.open = false; settingsPop.toggle() }
     function peek(): void { root.peek() }
     function notify(map: string): void { root.notify(map) }
+    // The weather map as a notification, playing the end of the radar loop.
+    function radar(): void {
+      for (var i = 0; i < mapLoaders.count; i++) {
+        var l = mapLoaders.itemAt(i)
+        if (l && l.modelData.id === "weather" && l.item && l.item.playRadar) l.item.playRadar()
+      }
+    }
     function maps(): void { settingsPop.open = false; mapMenu.toggle() }
     function map(name: string): void { root.setMap(name) }
     function corner(name: string): void { root.saveConfig({ corner: name }) }

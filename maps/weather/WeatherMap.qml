@@ -39,7 +39,7 @@ Item {
       out.push({ url: Model.basemapUrl(map.basemapStyle, "base", t), file: Model.basemapFile(map.cacheDir, map.basemapStyle, "base", t) })
       out.push({ url: Model.basemapUrl(map.basemapStyle, "labels", t), file: Model.basemapFile(map.cacheDir, map.basemapStyle, "labels", t) })
     }
-    var first = map.animate ? 0 : map.lastFrame
+    var first = map.animate ? 0 : (map.replayFrom >= 0 ? map.replayFrom : map.lastFrame)
     for (var f = Math.max(0, first); f <= map.lastFrame; f++) {
       for (var j = 0; j < map.radarTiles.length; j++) {
         var r = map.radarTiles[j]
@@ -52,11 +52,27 @@ Item {
   onLastFrameChanged: shownFrame = lastFrame
   onAnimateChanged: if (!animate) shownFrame = lastFrame
 
+  // One pass over the last `count` frames, ending on the latest: what a
+  // notification shows. -1 when not replaying.
+  property int replayFrom: -1
+  function replay(count) {
+    replayFrom = Math.max(0, lastFrame - count + 1)
+    shownFrame = replayFrom
+  }
+
   Timer {
     interval: 450
     repeat: true
-    running: map.animate && map.frames.length > 1
-    onTriggered: map.shownFrame = map.shownFrame >= map.lastFrame ? 0 : map.shownFrame + 1
+    running: (map.animate || map.replayFrom >= 0) && map.frames.length > 1
+    onTriggered: {
+      if (map.animate) {
+        map.shownFrame = map.shownFrame >= map.lastFrame ? 0 : map.shownFrame + 1
+      } else if (map.shownFrame < map.lastFrame) {
+        map.shownFrame++
+      } else {
+        map.replayFrom = -1
+      }
+    }
   }
 
   Rectangle {
@@ -92,6 +108,7 @@ Item {
       Loader {
         anchors.fill: parent
         active: frameLayer.index === map.lastFrame || map.animate
+          || (map.replayFrom >= 0 && frameLayer.index >= map.replayFrom)
         sourceComponent: Item {
           Repeater {
             model: map.radarTiles

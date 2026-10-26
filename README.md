@@ -206,7 +206,8 @@ persistent ones keep their id, an empty desk still on screen goes last.
 `clock`: `false` hides the clock, which then only shows while the minimap
 is hovered (it opens the map list).
 `rainAlert`: minutes (0–30, default 10, 0 = off) before the forecast rain
-starts to show the weather map as a notification, once per dry spell. The
+starts to show the weather map as a notification (playing the end of the
+radar loop), once per dry spell. The
 forecast comes in 15 min steps, so the start time is that precise at best.
 `iconOverrides`: `{ "<window class>": "<icon name or path>" }`, for windows
 whose launcher cannot be told apart (two accounts of the same web app).
@@ -223,6 +224,7 @@ omarchy-shell austraz.minimap maps          # open / close the map list
 omarchy-shell austraz.minimap settings      # open / close the settings
 omarchy-shell austraz.minimap peek          # hide until the pointer leaves the corner
 omarchy-shell austraz.minimap notify media  # show a map for a moment, queued
+omarchy-shell austraz.minimap radar         # weather map as a notification, end of the radar loop
 omarchy-shell austraz.minimap map workspace  # any map id
 omarchy-shell austraz.minimap corner top-left
 omarchy-shell austraz.minimap zoomIn
