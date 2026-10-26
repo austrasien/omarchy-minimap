@@ -966,7 +966,6 @@ Item {
     mask: Region {
       item: disc
       shape: RegionShape.Ellipse
-      Region { item: mapButton; shape: RegionShape.Ellipse }
     }
 
     // The wallpaper ring, under the disc.
@@ -1063,6 +1062,12 @@ Item {
 
       HoverHandler { id: hover }
 
+      // Right-click anywhere on the minimap opens its settings.
+      TapHandler {
+        acceptedButtons: Qt.RightButton
+        onTapped: { mapMenu.open = false; settingsPop.toggle() }
+      }
+
       readonly property real mapSize: width - 2 * root.ringWidth
 
       Rectangle {
@@ -1087,8 +1092,7 @@ Item {
 
         MouseArea {
           anchors.fill: parent
-          acceptedButtons: Qt.RightButton
-          onClicked: root.setMap(Model.nextMap(root.cfg.map, 1))
+          acceptedButtons: Qt.NoButton
           onWheel: function(wheel) {
             if (root.cfg.map !== "weather") return
             root.setZoom(root.cfg.zoom + (wheel.angleDelta.y > 0 ? 1 : -1))
@@ -1174,12 +1178,12 @@ Item {
         radius: height / 2
         color: Color.background
         border.width: 1
-        border.color: settingsPop.open ? Color.accent : Qt.alpha(Color.foreground, 0.25)
+        border.color: mapMenu.open ? Color.accent : Qt.alpha(Color.foreground, 0.25)
 
         MouseArea {
           anchors.fill: parent
           cursorShape: Qt.PointingHandCursor
-          onClicked: { mapMenu.open = false; settingsPop.toggle() }
+          onClicked: { settingsPop.open = false; mapMenu.toggle() }
         }
 
         Text {
@@ -1202,45 +1206,14 @@ Item {
           font.bold: true
         }
       }
-
-      // Map selector, in the square's corner facing the screen, just outside
-      // the ring so it never covers the dial or the workspace arcs. It shows
-      // the current map; clicking it lists the maps.
-      Rectangle {
-        id: mapButton
-        readonly property real a: Model.selectorAngle(root.cfg.corner) * Math.PI / 180
-        readonly property real dist: disc.width / 2 + root.ring + 10
-        width: 20; height: 20
-        radius: 10
-        x: disc.width / 2 + dist * Math.sin(a) - width / 2
-        y: disc.height / 2 - dist * Math.cos(a) - height / 2
-        color: mapMenu.open ? Color.accent : Color.background
-        border.width: 1
-        border.color: mapMenu.open ? Color.accent : Qt.alpha(Color.foreground, 0.4)
-        opacity: hover.hovered || mapMenu.open ? 1 : 0.55
-        Behavior on opacity { NumberAnimation { duration: 150 } }
-
-        Text {
-          anchors.centerIn: parent
-          text: Model.mapInfo(root.cfg.map).glyph
-          color: mapMenu.open ? Color.background : Color.foreground
-          font.family: Style.fontFamily
-          font.pixelSize: 12
-        }
-
-        MouseArea {
-          anchors.fill: parent
-          cursorShape: Qt.PointingHandCursor
-          onClicked: { settingsPop.open = false; mapMenu.toggle() }
-        }
-      }
     }
   }
 
-  // The list of maps, from the selector.
+  // The list of maps, from the clock: under the disc (above it in a bottom
+  // corner), on the screen's side.
   Popover {
     id: mapMenu
-    target: mapButton
+    target: disc
     cornerRight: root.cornerRight
     cornerBottom: root.cornerBottom
     padding: 4
@@ -1289,7 +1262,7 @@ Item {
     }
   }
 
-  // Settings, from the clock: beside the disc, on the screen's side.
+  // Settings, from a right-click: beside the disc, on the screen's side.
   Popover {
     id: settingsPop
     target: disc

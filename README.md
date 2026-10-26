@@ -13,8 +13,7 @@ A round, game-style minimap pinned to a screen corner of the Omarchy shell.
   icons along the band ("+n" when they do not fit; holding Super shows the
   desk numbers instead). An arc darkens from grey to black the longer its
   desk goes unvisited (from 5 min, black at 2 h; kept in
-  `~/.local/state/austraz-minimap/desks.json`). Hover names a workspace's
-  apps, click switches to it. Every window shows
+  `~/.local/state/austraz-minimap/desks.json`). Click switches to it. Every window shows
   its app icon in the middle of its visible part (desktop entry, StartupWMClass for web apps) and windows
   untouched for a while fade out. Coding agents show the same way on
   their window and on their workspace's arc, no markers: a fast red blink
@@ -67,10 +66,9 @@ screen edges. The window's corner on the minimap's side is masked too, and
 that window's Hyprland border (active colour when it has focus, inactive
 otherwise, same width) is carried around the cut.
 
-The button in the corner facing the screen shows the current map; clicking
-it lists the maps to pick from. Right-click on the disc cycles them.
-Clicking the clock opens the settings (corner, monitor, size, opacity,
-cutout, weather zoom and basemap), written to the config straight away.
+Clicking the clock lists the maps to pick from. Right-clicking anywhere on
+the minimap opens its settings (corner, monitor, size, opacity, over the
+bar, cutout, weather zoom and basemap), written to the config straight away.
 
 ## Data
 

@@ -25,7 +25,6 @@ Item {
   property real nowSec: Date.now() / 1000
 
   readonly property real inset: bandWidth + bandGap
-  property string hoverText: ""
 
   signal focusWindow(string address)
   signal focusWorkspace(int id)
@@ -83,17 +82,12 @@ Item {
     return map.restingColor(arc)
   }
 
-  function arcLabel(arc) {
-    var apps = arc.apps.slice(0, 3).join(", ")
-    return arc.id + (apps ? " · " + apps : "") + (arc.apps.length > 3 ? "…" : "")
-  }
-
   Rectangle {
     anchors.fill: parent
     color: Qt.darker(Color.background, 1.15)
   }
 
-  // Band: hover names the workspace, click goes there.
+  // Band: click goes to the workspace under the pointer.
   MouseArea {
     anchors.fill: parent
     hoverEnabled: true
@@ -104,7 +98,6 @@ Item {
       return Model.arcAt(map.arcs, Model.pointAngle(mouseX, mouseY, width))
     }
     cursorShape: arc ? Qt.PointingHandCursor : Qt.ArrowCursor
-    onArcChanged: map.hoverText = arc ? map.arcLabel(arc) : ""
     onClicked: if (arc) map.focusWorkspace(arc.id)
   }
 
@@ -523,29 +516,6 @@ Item {
       font.family: Style.fontFamily
       font.pixelSize: 30
       font.bold: true
-    }
-  }
-
-  Rectangle {
-    visible: map.hoverText !== ""
-    anchors.horizontalCenter: parent.horizontalCenter
-    anchors.bottom: parent.bottom
-    anchors.bottomMargin: map.inset + 10
-    width: Math.min(parent.width * 0.7, hoverLabel.implicitWidth + 12)
-    height: hoverLabel.implicitHeight + 4
-    radius: height / 2
-    color: Qt.alpha(Color.background, 0.85)
-    z: 6
-
-    Text {
-      id: hoverLabel
-      anchors.centerIn: parent
-      width: Math.min(implicitWidth, parent.width - 12)
-      elide: Text.ElideRight
-      text: map.hoverText
-      color: Color.foreground
-      font.family: Style.fontFamily
-      font.pixelSize: 10
     }
   }
 }
