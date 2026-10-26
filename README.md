@@ -129,17 +129,22 @@ shell has no Qt network access: fetch with `Process` and curl.
 
 ### Notifications
 
-A map can call `minimap.notify(this)` to be shown for a moment over the
-chosen one, e.g. when something happens it watches. Requests queue up: the
-last one stays 5 s, each one with another waiting behind it 2 s; a map
-already showing that asks again restarts its time. A notification asked with
-`notify(this, durationMs, true)` waits for the user: it stays until the
-map calls `minimap.release(this)`, letting others through for 2 s each
-and coming back after them. Whenever the disc
-changes map it turns over like a coin, right to left in a right corner,
-left to right in a left one, and back the other way when it returns to the
-chosen map. `omarchy-shell austraz.minimap notify <map id>` does the same
-from a script.
+A map calls `minimap.notify(this, durationMs, persistent)` to be shown over
+the chosen one.
+
+- **Temporary**: shown for `durationMs` (default 5 s), in turn; while
+  others wait behind it, 2 s. Asked again while showing, its time restarts.
+- **Persistent**: it waits for the user and stays until the map calls
+  `minimap.release(this)`. They pile up: the latest is shown; once
+  released, the one under it comes back, and so on. Temporaries show over
+  them, all of them, then the top persistent one comes back.
+
+Whenever what the disc shows changes it turns over like a coin, right to
+left in a right corner, left to right in a left one, and back the other
+way when it returns to the chosen map. The workspace map always stays on
+the whole disc: any other map is drawn over its middle, inside the band of
+workspace arcs, so the other desks stay in view. `omarchy-shell
+austraz.minimap notify <map id>` shows a map for a moment from a script.
 
 ### Notifications map
 
@@ -148,7 +153,8 @@ keeps for its toasts (`~/.local/state/omarchy/notifications/`, watched with
 `inotifywait`). Each one is shown as a notification: its icon in the middle
 (attached image, app icon or desktop entry), its title and body running
 once around the inner edge, fading in at noon and going clockwise, upright
-at 6 o'clock, until they fade out back at noon. Several wait their turn.
+at 6 o'clock, until they fade out back at noon. Several wait their turn; an urgent one (critical urgency, e.g. a
+suggestion waiting for "Voir") stays until clicked or closed by the daemon.
 Clicking it while it shows fires the notification's default action, as
 clicking its toast would (through `omarchy-shell notifications invoke <id>`,
 provided by the `austraz.notifications` clone).

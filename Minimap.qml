@@ -845,7 +845,8 @@ Item {
     }
   }
 
-  readonly property bool workspaceActive: shown && shownMap === "workspace"
+  // The workspace map stays on screen around every other map.
+  readonly property bool workspaceActive: shown && hasWorkspaceMap
 
   // Tiles resize without a dedicated event (a neighbour opens, a split
   // moves), so poll while the terrain is on screen.
@@ -898,23 +899,23 @@ Item {
 
   // ------------------------------------------------------ notifications
   //
-  // A map calls minimap.notify(this) to be shown for a moment over the
-  // chosen one. Requests queue up: the last one stays 5 s, the ones with
-  // another waiting behind them 2 s; a map already showing that asks again
-  // just restarts its time. Every change of what the disc shows turns it
-  // over like a coin: right to left in a right corner, left to right in a
-  // left one, and the other way when it comes back to the chosen map.
+  // A map calls minimap.notify(this, duration, persistent) to be shown
+  // over the chosen one.
+  // - Temporary: shown for `duration` (default 5 s), in turn; while others
+  //   wait behind it, 2 s. Asked again while showing, its time restarts.
+  // - Persistent: it waits for the user and stays until the map calls
+  //   release(this). They pile up: the latest is shown; once released, the
+  //   one under it comes back, and so on. Temporaries show over them, all
+  //   of them, then the top persistent one comes back.
+  // Every change of what the disc shows turns it over like a coin: right
+  // to left in a right corner, left to right in a left one, and the other
+  // way when it comes back to the chosen map.
 
-  property var notifyQueue: []
-  property string notifyingId: ""
-  property real notifyStart: 0
-  // How long each map asked to stay when it is the last one (ms).
-  property var notifyDurations: ({})
-  // Maps whose notification waits for the user (a question, a paused
-  // session…): it stays until the map calls release(), letting others
-  // through for 2 s each and coming back after them.
-  property var persistentIds: ({})
-  readonly property real notifyDuration: notifyDurations[notifyingId] || 5000
+  property var tempQueue: []       // [{ id, duration }], the first on screen
+  property var persistStack: []    // map ids, the latest last
+  property real tempStart: 0
+  readonly property string notifyingId: tempQueue.length ? tempQueue[0].id
+    : (persistStack.length ? persistStack[persistStack.length - 1] : "")
   readonly property string targetMap: notifyingId !== "" ? notifyingId : mapId
   property string shownMap: ""
   property real flip: 0
@@ -929,56 +930,41 @@ Item {
     return ""
   }
 
-  // `duration` (ms, default 5000) is how long it stays when nothing waits
-  // behind it, e.g. long enough for a text to scroll by. `persistent`: it
-  // stays past that, until release().
   function notify(source, duration, persistent) {
     var id = mapIdOf(source)
     if (id === "" || !shown) return
-    var d = ({})
-    for (var k in notifyDurations) d[k] = notifyDurations[k]
-    d[id] = duration > 0 ? duration : 5000
-    notifyDurations = d
-    var p = ({})
-    for (var j in persistentIds) if (j !== id) p[j] = true
-    if (persistent) p[id] = true
-    persistentIds = p
-    if (id === notifyingId) { notifyStart = Date.now(); return }
-    if (notifyQueue.indexOf(id) !== -1) return
-    notifyQueue = notifyQueue.concat([id])
-    if (notifyingId === "") nextNotification()
+    if (persistent) {
+      persistStack = persistStack.filter(function(x) { return x !== id }).concat([id])
+      return
+    }
+    var d = duration > 0 ? duration : 5000
+    var q = tempQueue.slice()
+    for (var i = 0; i < q.length; i++) {
+      if (q[i].id !== id) continue
+      q[i] = { id: id, duration: d }
+      tempQueue = q
+      if (i === 0) tempStart = Date.now()
+      return
+    }
+    if (!q.length) tempStart = Date.now()
+    tempQueue = q.concat([{ id: id, duration: d }])
   }
 
-  // The map's notification no longer needs to stay.
+  // The map's persistent notification is settled.
   function release(source) {
     var id = mapIdOf(source)
-    if (!persistentIds[id]) return
-    var p = ({})
-    for (var j in persistentIds) if (j !== id) p[j] = true
-    persistentIds = p
-    if (id === notifyingId && Date.now() - notifyStart >= notifyDuration) nextNotification()
-  }
-
-  function nextNotification() {
-    if (!notifyQueue.length) { notifyingId = ""; return }
-    notifyingId = notifyQueue[0]
-    notifyQueue = notifyQueue.slice(1)
-    notifyStart = Date.now()
+    persistStack = persistStack.filter(function(x) { return x !== id })
   }
 
   Timer {
     interval: 100
-    running: root.notifyingId !== ""
+    running: root.tempQueue.length > 0
     repeat: true
     onTriggered: {
-      if (Date.now() - root.notifyStart < (root.notifyQueue.length ? 2000 : root.notifyDuration)) return
-      if (!root.persistentIds[root.notifyingId]) { root.nextNotification(); return }
-      // Waiting for the user: others pass first, then it comes back.
-      if (root.notifyQueue.length) {
-        var back = root.notifyingId
-        root.nextNotification()
-        root.notifyQueue = root.notifyQueue.concat([back])
-      }
+      var q = root.tempQueue
+      if (Date.now() - root.tempStart < (q.length > 1 ? 2000 : q[0].duration)) return
+      root.tempQueue = q.slice(1)
+      root.tempStart = Date.now()
     }
   }
 
@@ -996,6 +982,11 @@ Item {
     ScriptAction { script: root.shownMap = root.targetMap }
     NumberAnimation { target: root; property: "flip"; from: -90; to: 0; duration: 230; easing.type: Easing.OutQuad }
     onFinished: if (root.shownMap !== root.targetMap) flipAnim.start()
+  }
+
+  readonly property bool hasWorkspaceMap: {
+    for (var i = 0; i < maps.length; i++) if (maps[i].id === "workspace") return true
+    return false
   }
 
   function setMap(name) {
@@ -1338,13 +1329,6 @@ Item {
           y: root.ringWidth
           width: disc.mapSize
           height: disc.mapSize
-          // The coin turning over (see the notifications section).
-          transform: Rotation {
-            origin.x: content.width / 2
-            origin.y: content.height / 2
-            axis { x: 0; y: 1; z: 0 }
-            angle: root.flip * root.flipDir
-          }
           layer.enabled: true
           layer.effect: MultiEffect {
             maskEnabled: true
@@ -1354,14 +1338,36 @@ Item {
           }
 
           // Every map stays loaded so it can watch things and ask for a
-          // notification; only the one shown is visible.
+          // notification. The workspace map is always there on the whole
+          // disc, so the other desks stay in view around whatever is shown;
+          // any other map is drawn over it in the middle circle, inside the
+          // band, and that circle is what turns over like a coin.
           Repeater {
             id: mapLoaders
             model: root.maps
             delegate: Loader {
+              id: mapLoader
               required property var modelData
-              anchors.fill: parent
-              visible: root.shownMap === modelData.id
+              readonly property bool band: modelData.id === "workspace"
+              readonly property real inset: band || !root.hasWorkspaceMap ? 0 : root.bandWidth + root.bandGap
+              x: inset; y: inset
+              width: content.width - 2 * inset
+              height: width
+              z: band ? 0 : 1
+              visible: band || root.shownMap === modelData.id
+              transform: Rotation {
+                origin.x: mapLoader.width / 2
+                origin.y: mapLoader.height / 2
+                axis { x: 0; y: 1; z: 0 }
+                angle: mapLoader.band && root.hasWorkspaceMap ? 0 : root.flip * root.flipDir
+              }
+              layer.enabled: !band
+              layer.effect: MultiEffect {
+                maskEnabled: true
+                maskSource: innerMask
+                maskThresholdMin: 0.5
+                maskSpreadAtMin: 1.0
+              }
               Component.onCompleted: setSource(modelData.url, { minimap: root })
               onStatusChanged: if (status === Loader.Error) console.warn("minimap: map failed to load:", modelData.url)
             }
@@ -1369,9 +1375,26 @@ Item {
 
           // The coin's shading: the face turning away darkens.
           Rectangle {
-            anchors.fill: parent
+            readonly property real inset: root.hasWorkspaceMap && root.shownMap !== "workspace"
+              ? root.bandWidth + root.bandGap : 0
+            z: 2
+            x: inset; y: inset
+            width: content.width - 2 * inset
+            height: width
+            radius: width / 2
             color: "black"
+            // The workspace map itself never turns: nothing to shade then.
+            visible: !(root.hasWorkspaceMap && root.shownMap === "workspace")
             opacity: 0.55 * Math.sin(Math.abs(root.flip) * Math.PI / 180)
+          }
+
+          Item {
+            id: innerMask
+            width: content.width - 2 * (root.hasWorkspaceMap ? root.bandWidth + root.bandGap : 0)
+            height: width
+            layer.enabled: true
+            visible: false
+            Rectangle { anchors.fill: parent; radius: width / 2; color: "black" }
           }
         }
 

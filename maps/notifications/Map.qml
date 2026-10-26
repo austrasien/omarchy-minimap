@@ -8,7 +8,9 @@ import qs.Commons
 // (~/.local/state/omarchy/notifications/*.json). Each one asks the minimap
 // for a notification: its icon in the middle, its text running once around
 // the inner edge, fading in at noon, clockwise through 3, 6 and 9 (upright
-// at 6), fading out back at noon. Shown one after the other.
+// at 6), fading out back at noon. Shown one after the other. An urgent one
+// (critical urgency) waits for the user: a persistent notification of the
+// minimap, until clicked or until the daemon closes it.
 Item {
   id: view
   required property var minimap
@@ -16,8 +18,9 @@ Item {
   readonly property string dir: minimap.home + "/.local/state/omarchy/notifications"
   readonly property bool onScreen: minimap.shownMap === "notifications"
 
-  property var pending: []          // notifications waiting their turn
-  property var current: null        // { icon, glyph, text }
+  property var temps: []            // notifications in turn
+  property var stack: []            // urgent ones, the latest last
+  property var current: null        // { id, file, icon, glyph, text, persistent }
   property var seen: ({})           // file names already taken
   property real offset: 0           // degrees the text's head has travelled
 
@@ -40,15 +43,26 @@ Item {
   // New files in the directory: a toast just went up.
   Process {
     running: true
-    command: ["inotifywait", "-m", "-q", "-e", "close_write", "-e", "moved_to", "--format", "%f", view.dir]
+    command: ["inotifywait", "-m", "-q", "-e", "close_write", "-e", "moved_to", "-e", "moved_from", "-e", "delete",
+      "--format", "%e %f", view.dir]
     stdout: SplitParser {
-      onRead: function(name) {
-        if (!/\.json$/.test(name) || view.seen[name]) return
+      onRead: function(line) {
+        var sp = line.indexOf(" ")
+        var ev = line.slice(0, sp), name = line.slice(sp + 1)
+        if (!/\.json$/.test(name)) return
+        // An urgent one gone (closed, moved to the history): nothing to
+        // wait for. The others expire there long before their text has
+        // gone round: they run their course.
+        if (/MOVED_FROM|DELETE/.test(ev)) {
+          view.settle(function(it) { return it.file === name && it.persistent })
+          return
+        }
+        if (view.seen[name]) return
         var s = ({})
         for (var k in view.seen) s[k] = true
         s[name] = true
         view.seen = s
-        reader.queue = reader.queue.concat([view.dir + "/" + name])
+        reader.queue = reader.queue.concat([name])
         reader.next()
       }
     }
@@ -58,21 +72,23 @@ Item {
   Process {
     id: reader
     property var queue: []
+    property string file: ""
     function next() {
       if (running || !queue.length) return
-      command = ["cat", queue[0]]
+      file = queue[0]
+      command = ["cat", view.dir + "/" + file]
       queue = queue.slice(1)
       running = true
     }
     stdout: StdioCollector {
       onStreamFinished: {
-        try { view.take(JSON.parse(String(text || "{}"))) } catch (e) {}
+        try { view.take(JSON.parse(String(text || "{}")), reader.file) } catch (e) {}
         Qt.callLater(reader.next)
       }
     }
   }
 
-  function take(n) {
+  function take(n, file) {
     var summary = String(n.summary || "").trim()
     var body = String(n.body || "").replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim()
     var text = summary && body ? summary + " — " + body : (summary || body || String(n.app || ""))
@@ -82,19 +98,36 @@ Item {
     if (n.image) icon = minimap.iconUrl(n.image)
     else if (n.appIcon) icon = minimap.iconUrl(n.appIcon)
     else if (n.app) icon = minimap.appIcon(String(n.app))
-    pending = pending.concat([{ id: String(n.id), icon: icon, glyph: String(n.glyph || ""), text: text }])
-    if (!current) showNext()
+    var item = { id: String(n.id), file: file, icon: icon, glyph: String(n.glyph || ""), text: text,
+                 persistent: Number(n.urgency) >= 2 }
+    if (item.persistent) {
+      stack = stack.concat([item])
+      minimap.notify(view, 0, true)
+    } else {
+      temps = temps.concat([item])
+    }
+    refresh()
   }
 
-  function showNext() {
-    if (!pending.length) { current = null; return }
-    current = pending[0]
-    pending = pending.slice(1)
+  // What shows: the first in turn, else the latest urgent one.
+  function refresh() {
+    var next = temps.length ? temps[0] : (stack.length ? stack[stack.length - 1] : null)
+    if (next === current) return
+    current = next
     offset = 0
     run.stop()
+    if (!current) { minimap.release(view); return }
     // The coin turn takes about half a second before this face shows.
-    minimap.notify(view, runMs + 700)
+    if (!current.persistent) minimap.notify(view, runMs + 700)
     if (onScreen) run.start()
+  }
+
+  function settle(test) {
+    temps = temps.filter(function(it) { return !test(it) })
+    stack = stack.filter(function(it) { return !test(it) })
+    if (!stack.length) minimap.release(view)
+    if (current && test(current)) current = null
+    refresh()
   }
 
   onOnScreenChanged: if (onScreen && current && !run.running) run.start()
@@ -106,7 +139,13 @@ Item {
     from: 0
     to: view.lap
     duration: view.runMs
-    onFinished: view.showNext()
+    onFinished: {
+      if (!view.current) return
+      // An urgent one goes round again until settled.
+      if (view.current.persistent) { if (view.onScreen) run.start(); return }
+      var done = view.current
+      view.settle(function(it) { return it === done })
+    }
   }
 
   Rectangle {
@@ -122,10 +161,10 @@ Item {
     enabled: view.current !== null && view.onScreen
     cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
     onClicked: {
-      invoker.command = ["omarchy-shell", "notifications", "invoke", view.current.id]
+      var done = view.current
+      invoker.command = ["omarchy-shell", "notifications", "invoke", done.id]
       invoker.running = true
-      run.stop()
-      view.showNext()
+      view.settle(function(it) { return it === done })
     }
   }
 
