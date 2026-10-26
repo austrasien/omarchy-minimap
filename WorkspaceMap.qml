@@ -337,7 +337,8 @@ Item {
         MouseArea {
           anchors.fill: parent
           enabled: terrain.interactive
-          hoverEnabled: true
+          // No hover here: the band's area below tracks the pointer alone,
+          // so the workspace label clears as soon as it leaves the band.
           cursorShape: Qt.PointingHandCursor
           onClicked: map.focusWindow(tile.modelData.address)
         }
