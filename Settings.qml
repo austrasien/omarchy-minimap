@@ -176,6 +176,23 @@ Column {
 
   Row {
     spacing: 8
+    Label { text: "Notifications"; height: toasts.height }
+    ToggleSwitch {
+      id: toasts
+      checked: settings.cfg.hideToasts
+      onToggled: settings.save({ hideToasts: !settings.cfg.hideToasts })
+    }
+    Text {
+      anchors.verticalCenter: parent.verticalCenter
+      text: "masquer les bulles Omarchy"
+      color: Qt.alpha(Color.popups.text, 0.5)
+      font.family: Style.font.family
+      font.pixelSize: Style.font.caption
+    }
+  }
+
+  Row {
+    spacing: 8
     Label { text: "Découpe"; height: cutout.height }
     ToggleSwitch {
       id: cutout

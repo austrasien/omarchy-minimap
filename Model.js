@@ -39,6 +39,9 @@ function normalizeConfig(raw) {
     autoCompact: c.autoCompact === true,
     // false: the clock only shows while the minimap is hovered.
     clock: c.clock !== false,
+    // true: Omarchy's toasts stay hidden, the notifications map shows them
+    // (honoured by a notification daemon that reads this file).
+    hideToasts: c.hideToasts !== false,
     // Minutes before the rain starts to show the weather map; 0 = off.
     rainAlert: isNaN(parseInt(c.rainAlert, 10)) ? 10 : clamp(parseInt(c.rainAlert, 10), 0, 30),
     iconOverrides: c.iconOverrides && typeof c.iconOverrides === "object" ? c.iconOverrides : {},

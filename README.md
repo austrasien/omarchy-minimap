@@ -143,6 +143,9 @@ keeps for its toasts (`~/.local/state/omarchy/notifications/`, watched with
 (attached image, app icon or desktop entry), its title and body running
 once around the inner edge, fading in at noon and going clockwise, upright
 at 6 o'clock, until they fade out back at noon. Several wait their turn.
+With `hideToasts` (on by default) a notification daemon that reads
+`minimap.json`, such as the `austraz.notifications` clone, keeps its own
+toasts hidden: the minimap shows them instead.
 
 ### Media
 
