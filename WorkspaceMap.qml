@@ -241,7 +241,8 @@ Item {
         }
         x: modelData.x; y: modelData.y
         width: modelData.w; height: modelData.h
-        z: modelData.floating ? 2 : 1
+        // A working window sits above the others so its rings cross them.
+        z: marker === "working" ? 3 : (modelData.floating ? 2 : 1)
         opacity: modelData.focused || marker !== "" ? 1
           : Model.fogOpacity(map.lastFocus[modelData.address] || map.fogSince, map.nowSec, 0.3)
 
@@ -264,7 +265,8 @@ Item {
 
         // Agent state, the same as on the arcs: blocked = fast red blink,
         // done = slow accent blink, working = accent rings spreading from the
-        // app icon to the window's edges for as long as it works.
+        // app icon over the whole disc for as long as it works, so the rings
+        // of two working windows cross.
         Shape {
           visible: tile.marker === "waiting" || tile.marker === "done"
           x: -tile.x; y: -tile.y
@@ -296,12 +298,10 @@ Item {
 
           readonly property real ox: tile.x + tile.centre.x
           readonly property real oy: tile.y + tile.centre.y
-          // Far enough to reach the farthest point of the window's outline.
+          // Far enough to reach the farthest point of the disc.
           readonly property real reach: {
-            var m = 0
-            for (var i = 0; i < tile.outline.length; i++)
-              m = Math.max(m, Math.hypot(tile.outline[i].x - ox, tile.outline[i].y - oy))
-            return m
+            var c = terrain.width / 2
+            return Math.hypot(ox - c, oy - c) + c
           }
           readonly property real phase: map.ripplePhase
 
@@ -324,18 +324,14 @@ Item {
           }
         }
 
-        Shape {
+        Rectangle {
           id: rippleMask
           x: -tile.x; y: -tile.y
           width: terrain.width; height: terrain.height
+          radius: width / 2
+          color: "black"
           visible: false
           layer.enabled: ripple.on
-          preferredRendererType: Shape.CurveRenderer
-          ShapePath {
-            fillColor: "black"
-            strokeColor: "transparent"
-            PathPolyline { path: tile.outline.map(function(p) { return Qt.point(p.x, p.y) }) }
-          }
         }
 
         MouseArea {
@@ -344,8 +340,6 @@ Item {
           hoverEnabled: true
           cursorShape: Qt.PointingHandCursor
           onClicked: map.focusWindow(tile.modelData.address)
-          onEntered: map.hoverText = tile.modelData.appId || tile.modelData.title || ""
-          onExited: map.hoverText = ""
         }
 
         // Every window shows its app icon in the middle of its visible part.
