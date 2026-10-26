@@ -12,7 +12,7 @@ Column {
   required property var cfg
   signal save(var patch)
 
-  readonly property int labelWidth: 92
+  readonly property int labelWidth: 108
   readonly property int controlWidth: 210
   spacing: 10
 
@@ -46,7 +46,7 @@ Column {
     Label { text: setting.label; height: parent.height }
     PanelSlider {
       id: slider
-      width: settings.controlWidth - 44
+      width: settings.controlWidth - 52
       anchors.verticalCenter: parent.verticalCenter
       value: setting.value
       minimum: setting.minimum
@@ -57,7 +57,7 @@ Column {
       knobColor: Color.popups.text
       onReleased: function(v) { setting.released(v) }
     }
-    Value { text: setting.format(slider.liveValue); height: parent.height; width: 36; horizontalAlignment: Text.AlignRight }
+    Value { text: setting.format(slider.liveValue); height: parent.height; width: 44; horizontalAlignment: Text.AlignRight }
   }
 
   component Choice: Row {
@@ -182,6 +182,15 @@ Column {
     minimum: Model.MIN_ZOOM
     maximum: Model.MAX_ZOOM
     onReleased: function(v) { settings.save({ zoom: Math.round(v) }) }
+  }
+
+  Setting {
+    label: "Alerte pluie"
+    value: settings.cfg.rainAlert
+    minimum: 0
+    maximum: 30
+    format: function(v) { return Math.round(v) === 0 ? "non" : Math.round(v) + " min" }
+    onReleased: function(v) { settings.save({ rainAlert: Math.round(v) }) }
   }
 
   Choice {

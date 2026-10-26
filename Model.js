@@ -37,6 +37,8 @@ function normalizeConfig(raw) {
     overBar: c.overBar === true,
     // true: renumber the workspaces 1..n whenever a gap appears.
     autoCompact: c.autoCompact === true,
+    // Minutes before the rain starts to show the weather map; 0 = off.
+    rainAlert: isNaN(parseInt(c.rainAlert, 10)) ? 10 : clamp(parseInt(c.rainAlert, 10), 0, 30),
     iconOverrides: c.iconOverrides && typeof c.iconOverrides === "object" ? c.iconOverrides : {},
     zoom: isNaN(zoom) ? 7 : clamp(zoom, MIN_ZOOM, MAX_ZOOM),
     opacity: isNaN(opacity) ? 1 : clamp(opacity, 0.2, 1),
@@ -264,6 +266,21 @@ function nowcastLine(rain, nowSec) {
   }
   var span = Math.round((upcoming[upcoming.length - 1].time + 900 - nowSec) / 3600)
   return raining ? "pluie " + span + " h+" : "sec " + span + " h"
+}
+
+// When the next rain starts (epoch s, the start of the first wet 15 min
+// step), or 0 when it is raining now or no rain is forecast.
+function rainStart(rain, nowSec) {
+  if (!rain || !rain.length) return 0
+  var first = true
+  for (var i = 0; i < rain.length; i++) {
+    if (rain[i].time + 900 <= nowSec) continue
+    var wet = rain[i].mm >= RAIN_MM
+    if (first && wet && rain[i].time <= nowSec) return 0
+    first = false
+    if (wet) return rain[i].time
+  }
+  return 0
 }
 
 function pad2(n) { return n < 10 ? "0" + n : String(n) }
@@ -725,6 +742,7 @@ if (typeof module !== "undefined") {
     normalizeConfig: normalizeConfig,
     parseLocation: parseLocation,
     nextMap: nextMap,
+    rainStart: rainStart,
     compactionPlan: compactionPlan,
     deskDarkness: deskDarkness,
     selectorAngle: selectorAngle,

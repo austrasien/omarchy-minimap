@@ -12,6 +12,24 @@ Item {
   readonly property bool shown: minimap.shownMap === "weather"
   onShownChanged: if (shown) minimap.requestTiles(weather.wanted)
 
+  // Rain alert: X minutes (cfg.rainAlert) before the forecast rain starts,
+  // ask the minimap to show this map; once per dry spell. The forecast
+  // comes in 15 min steps, so the start time is that precise at best.
+  readonly property real rainAt: Model.rainStart(minimap.forecast ? minimap.forecast.rain : [], minimap.nowSec)
+  property bool announced: false
+  onRainAtChanged: if (rainAt === 0) announced = false
+  Timer {
+    interval: 15000
+    running: view.minimap.cfg.rainAlert > 0 && view.rainAt > 0 && !view.announced
+    repeat: true
+    triggeredOnStart: true
+    onTriggered: {
+      if (Date.now() / 1000 < view.rainAt - view.minimap.cfg.rainAlert * 60) return
+      view.announced = true
+      view.minimap.notify(view)
+    }
+  }
+
   WeatherMap {
     id: weather
     anchors.fill: parent

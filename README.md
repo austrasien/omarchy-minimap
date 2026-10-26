@@ -69,7 +69,7 @@ otherwise, same width) is carried around the cut.
 
 Clicking the clock lists the maps to pick from. Right-clicking anywhere on
 the minimap opens its settings (corner, monitor, size, opacity, over the
-bar, workspace compaction, cutout, weather zoom and basemap), written to the config straight away.
+bar, workspace compaction, cutout, weather zoom, rain alert and basemap), written to the config straight away.
 Hovering with Shift held closes the minimap like an iris and lets clicks through to
 the window under it; it comes back once the pointer leaves its corner.
 
@@ -186,6 +186,9 @@ workspace has a fullscreen window.
 `autoCompact`: `true` renumbers the workspaces 1..n whenever a gap appears
 (a desk emptied, a window moved away): occupied desks keep their order,
 persistent ones keep their id, an empty desk still on screen goes last.
+`rainAlert`: minutes (0–30, default 10, 0 = off) before the forecast rain
+starts to show the weather map as a notification, once per dry spell. The
+forecast comes in 15 min steps, so the start time is that precise at best.
 `iconOverrides`: `{ "<window class>": "<icon name or path>" }`, for windows
 whose launcher cannot be told apart (two accounts of the same web app).
 `corner`: `bottom-right`, `bottom-left`, `top-right`, `top-left`.

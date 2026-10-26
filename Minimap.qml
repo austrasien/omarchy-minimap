@@ -224,9 +224,10 @@ Item {
     onTriggered: root.fetchRadar()
   }
 
-  // Sunrise/sunset feed the dial whatever the map, so this one always runs.
+  // Sunrise/sunset feed the dial whatever the map, so this one always runs;
+  // more often while the rain alert watches the forecast.
   Timer {
-    interval: 600000
+    interval: root.cfg.rainAlert > 0 ? 300000 : 600000
     running: root.shown
     repeat: true
     onTriggered: root.fetchForecast()
