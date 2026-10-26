@@ -197,23 +197,73 @@ Item {
     }
   }
 
+  // On each arc, its apps' icons side by side along the band, centred on
+  // the arc; "+n" when they do not all fit. Holding Super swaps them for
+  // the desk number, as does a desk whose icons could not be found.
   Repeater {
     model: map.arcIds
-    delegate: Text {
+    delegate: Item {
+      id: arcLabels
       required property var modelData
       readonly property var arc: map.arcFor(modelData)
-      readonly property real a: arc ? arc.mid * Math.PI / 180 : 0
       readonly property real dist: map.width / 2 - map.bandWidth / 2
-      x: map.width / 2 + dist * Math.sin(a) - width / 2
-      y: map.height / 2 - dist * Math.cos(a) - height / 2
-      visible: arc !== null && arc.sweep > 14
-      // The scratchpad (negative id) reads "0", as in Spaces.
-      text: modelData < 0 ? "0" : String(modelData)
-      color: arc && (arc.arriving || (arc.leaving && map.settle < 0.5) || arc.state === "waiting" || arc.state === "done")
+      readonly property var slots: Model.arcIconSlots(arc, dist, map.bandWidth - 3, 2)
+      readonly property bool numbered: map.numbersShown || slots.length === 0
+      readonly property color ink: arc && (arc.arriving || (arc.leaving && map.settle < 0.5) || arc.state === "waiting" || arc.state === "done")
         ? Color.background : Color.foreground
-      font.family: Style.fontFamily
-      font.pixelSize: 11
-      font.bold: true
+      anchors.fill: parent
+
+      Text {
+        readonly property real a: arcLabels.arc ? arcLabels.arc.mid * Math.PI / 180 : 0
+        x: map.width / 2 + arcLabels.dist * Math.sin(a) - width / 2
+        y: map.height / 2 - arcLabels.dist * Math.cos(a) - height / 2
+        visible: opacity > 0
+        opacity: arcLabels.arc !== null && arcLabels.arc.sweep > 14 && arcLabels.numbered ? 1 : 0
+        Behavior on opacity { NumberAnimation { duration: 150 } }
+        // The scratchpad (negative id) reads "0", as in Spaces.
+        text: arcLabels.modelData < 0 ? "0" : String(arcLabels.modelData)
+        color: arcLabels.ink
+        font.family: Style.fontFamily
+        font.pixelSize: 11
+        font.bold: true
+      }
+
+      Item {
+        anchors.fill: parent
+        visible: opacity > 0
+        opacity: arcLabels.numbered ? 0 : 1
+        Behavior on opacity { NumberAnimation { duration: 150 } }
+
+        Repeater {
+          model: arcLabels.slots
+          delegate: Item {
+            required property var modelData
+            readonly property real a: modelData.angle * Math.PI / 180
+            width: map.bandWidth - 6; height: width
+            x: map.width / 2 + arcLabels.dist * Math.sin(a) - width / 2
+            y: map.height / 2 - arcLabels.dist * Math.cos(a) - height / 2
+
+            Image {
+              anchors.fill: parent
+              visible: modelData.icon !== undefined
+              source: modelData.icon || ""
+              sourceSize.width: 32; sourceSize.height: 32
+              asynchronous: true
+              smooth: true
+              mipmap: true
+            }
+            Text {
+              anchors.centerIn: parent
+              visible: modelData.more !== undefined
+              text: "+" + modelData.more
+              color: arcLabels.ink
+              font.family: Style.fontFamily
+              font.pixelSize: 9
+              font.bold: true
+            }
+          }
+        }
+      }
     }
   }
 

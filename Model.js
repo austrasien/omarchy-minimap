@@ -434,9 +434,29 @@ function workspaceArcs(workspaces, gap) {
     var ws = workspaces[i]
     var mid = i * span
     out.push({
-      id: ws.id, current: ws.current, state: ws.state, apps: ws.apps, count: ws.count,
+      id: ws.id, current: ws.current, state: ws.state, apps: ws.apps, icons: ws.icons || [], count: ws.count,
       start: ((mid - span / 2 + g / 2) % 360 + 360) % 360, sweep: span - g, mid: mid
     })
+  }
+  return out
+}
+
+// Where an arc's icons go: as many as fit along it, `step` px apart at
+// radius r, centred on its middle; when they do not all fit, the last slot
+// shows "+n". Returns [{ angle, icon }] or [{ angle, more }].
+function arcIconSlots(arc, r, step, margin) {
+  var icons = arc && arc.icons ? arc.icons : []
+  if (!icons.length || r <= 0) return []
+  var stepDeg = step / r * 180 / Math.PI
+  var fit = Math.floor((arc.sweep - 2 * (margin || 0)) / stepDeg)
+  if (fit < 1) return []
+  var shown = icons.length <= fit ? icons.length : fit - 1
+  var n = icons.length <= fit ? shown : fit
+  var out = []
+  for (var i = 0; i < n; i++) {
+    var angle = arc.mid + (i - (n - 1) / 2) * stepDeg
+    if (i < shown) out.push({ angle: angle, icon: icons[i] })
+    else out.push({ angle: angle, more: icons.length - shown })
   }
   return out
 }
@@ -468,7 +488,7 @@ function blendArcs(from, to, t) {
       start = g.mid - sweep / 2
     }
     var src = g || f
-    out.push({ id: src.id, current: src.current, state: src.state, apps: src.apps, count: src.count,
+    out.push({ id: src.id, current: src.current, state: src.state, apps: src.apps, icons: src.icons || [], count: src.count,
       arriving: !!f && !g, leaving: !f && !!g, start: (start % 360 + 360) % 360, sweep: sweep, mid: ((start + sweep / 2) % 360 + 360) % 360 })
   }
   return out
@@ -696,6 +716,7 @@ if (typeof module !== "undefined") {
     discLayout: discLayout,
     workspaceArcs: workspaceArcs,
     blendArcs: blendArcs,
+    arcIconSlots: arcIconSlots,
     polygonCentroid: polygonCentroid,
     appIdCandidates: appIdCandidates,
     webAppHint: webAppHint,

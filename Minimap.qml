@@ -652,9 +652,12 @@ Item {
       var w = allWindows[i]
       if (w.workspace === 0 || w.workspace === currentWorkspace) continue
       if (w.workspace < 0 && !w.scratchpad) continue
-      if (!byId[w.workspace]) byId[w.workspace] = { id: w.workspace, apps: [], addresses: [] }
+      if (!byId[w.workspace]) byId[w.workspace] = { id: w.workspace, apps: [], addresses: [], icons: [] }
       byId[w.workspace].apps.push(w.appId.split(".").pop())
       byId[w.workspace].addresses.push(w.address)
+      // One icon per app, in window order.
+      var icon = windowIcon(w)
+      if (icon && byId[w.workspace].icons.indexOf(icon) === -1) byId[w.workspace].icons.push(icon)
     }
     var list = []
     for (var id in byId) {
@@ -664,7 +667,7 @@ Item {
       var st = Model.strongestState(ws.addresses, markers)
       if (st !== "waiting" && ws.addresses.some(function(a) { return root.urgentAddresses[a] })) st = "waiting"
       list.push({ id: ws.id, current: ws.id === currentWorkspace, count: ws.addresses.length,
-        apps: ws.apps, state: st })
+        apps: ws.apps, icons: ws.icons, state: st })
     }
     // Numbered desks in order, the scratchpad last.
     list.sort(function(a, b) { return (a.id < 0) - (b.id < 0) || a.id - b.id })
