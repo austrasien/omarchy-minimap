@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Effects
 import QtQuick.Shapes
 import qs.Commons
-import "Model.js" as Model
+import "../../Model.js" as Model
 
 // The current workspace stretched onto the disc (one window fills it, two
 // side by side make two half discs), with the other occupied workspaces as

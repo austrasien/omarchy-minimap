@@ -70,6 +70,53 @@ Clicking the clock lists the maps to pick from. Right-clicking anywhere on
 the minimap opens its settings (corner, monitor, size, opacity, over the
 bar, cutout, weather zoom and basemap), written to the config straight away.
 
+## Maps
+
+Each map is a plugin of its own: a folder under `maps/` holding a
+`map.json` and a QML entry point. Weather (`maps/weather/`) and workspace
+(`maps/workspace/`) are built in; add as many folders as you like next to
+them and they show up in the clock's list (rescanned each time it opens).
+Folders other than the built-in ones are ignored by git, so
+`omarchy plugin update` leaves them alone.
+
+```json
+{
+  "id": "hello",
+  "name": "Hello",
+  "icon": "󰥔",
+  "entry": "Map.qml",
+  "order": 50
+}
+```
+
+`id` defaults to the folder name, `entry` to `Map.qml`, `order` to 100
+(the list is sorted by order, then name). `icon` is a Nerd Font glyph or a
+`.svg` / `.png` file in the folder.
+
+The entry fills the inner disc (clipped round) and gets the minimap as its
+one required property:
+
+```qml
+import QtQuick
+import qs.Commons
+
+Item {
+  required property var minimap
+  Text {
+    anchors.centerIn: parent
+    text: Qt.formatTime(minimap.now, "HH:mm:ss")
+    color: Color.accent
+  }
+}
+```
+
+Useful members of `minimap`: `now`, `nowSec`, `hovered`, `cfg` (the
+config), `location`, `forecast`, `allWindows`, `currentWorkspace`,
+`terrain`, `workspaceArcs`, `agents`, `markers`, `numbersShown`, `home`,
+`cacheDir`; and `focusWindow(address)`, `focusWorkspace(id)`,
+`setMap(id)`, `saveConfig(patch)`. Only the current map is loaded. The
+shell has no Qt network access: fetch with `Process` and curl.
+
 ## Data
 
 | What | Source |
@@ -119,10 +166,10 @@ whose launcher cannot be told apart (two accounts of the same web app).
 
 ```bash
 omarchy-shell austraz.minimap toggle        # show / hide
-omarchy-shell austraz.minimap next          # cycle maps
+omarchy-shell austraz.minimap next          # next map in the list
 omarchy-shell austraz.minimap maps          # open / close the map list
 omarchy-shell austraz.minimap settings      # open / close the settings
-omarchy-shell austraz.minimap map workspace
+omarchy-shell austraz.minimap map workspace  # any map id
 omarchy-shell austraz.minimap corner top-left
 omarchy-shell austraz.minimap zoomIn
 omarchy-shell austraz.minimap refresh       # refetch radar + forecast

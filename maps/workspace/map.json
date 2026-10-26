@@ -1,0 +1,7 @@
+{
+  "id": "workspace",
+  "name": "Bureaux",
+  "icon": "󰍹",
+  "entry": "Map.qml",
+  "order": 20
+}

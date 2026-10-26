@@ -1,2 +1,6 @@
 __pycache__/
 *.pyc
+# Maps you add live next to the built-in ones and stay out of git.
+maps/*
+!maps/weather/
+!maps/workspace/

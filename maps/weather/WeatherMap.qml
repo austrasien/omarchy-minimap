@@ -1,6 +1,6 @@
 import QtQuick
 import qs.Commons
-import "Model.js" as Model
+import "../../Model.js" as Model
 
 // Weather radar: Esri basemap, RainViewer reflectivity, Esri labels on
 // top, you in the middle. At rest it shows the latest scan; while hovered

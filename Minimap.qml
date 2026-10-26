@@ -9,8 +9,9 @@ import Quickshell.Services.UPower
 import qs.Commons
 import "Model.js" as Model
 
-// A round, game-style minimap pinned to a screen corner. Two maps behind a
-// selector on the rim: weather radar and the current workspace's terrain.
+// A round, game-style minimap pinned to a screen corner. What the disc
+// shows is a map plugin, one folder per map under maps/ (weather radar and
+// workspace terrain built in); the clock lists them.
 // The rim is a 24 h day/night dial; the battery marks the hour it lasts until.
 Item {
   id: root
@@ -212,7 +213,7 @@ Item {
     }
   }
 
-  readonly property bool weatherActive: shown && cfg.map === "weather"
+  readonly property bool weatherActive: shown && mapId === "weather"
   onWeatherActiveChanged: if (weatherActive && nowSec - radarFetchedAt > 300) fetchRadar()
 
   Timer {
@@ -791,7 +792,7 @@ Item {
     }
   }
 
-  readonly property bool workspaceActive: shown && cfg.map === "workspace"
+  readonly property bool workspaceActive: shown && mapId === "workspace"
 
   // Tiles resize without a dedicated event (a neighbour opens, a split
   // moves), so poll while the terrain is on screen.
@@ -813,7 +814,38 @@ Item {
     return screens.length ? screens[0] : null
   }
 
-  function setMap(name) { if (name === "weather" || name === "workspace") saveConfig({ map: name }) }
+  // ------------------------------------------------------------- maps
+  //
+  // Each folder under maps/ holding a map.json is a map: its entry QML is
+  // loaded into the disc with `minimap` (this object) as its only required
+  // property. bin/list-maps reads them; rescanned whenever the list opens.
+
+  property var maps: []
+  readonly property bool hovered: hover.hovered
+  // The configured map, or the first one when it is not installed.
+  readonly property string mapId: {
+    for (var i = 0; i < maps.length; i++) if (maps[i].id === cfg.map) return cfg.map
+    return maps.length ? maps[0].id : cfg.map
+  }
+
+  Process {
+    id: mapScan
+    command: ["python3", "-I", Qt.resolvedUrl("bin/list-maps").toString().replace(/^[a-z]+:\/\//, "")]
+    running: true
+    stdout: StdioCollector {
+      onStreamFinished: {
+        try {
+          var list = JSON.parse(String(text || "[]"))
+          if (Array.isArray(list) && JSON.stringify(list) !== JSON.stringify(root.maps)) root.maps = list
+        } catch (e) { console.warn("minimap: bad map list", e) }
+      }
+    }
+  }
+  function scanMaps() { if (!mapScan.running) mapScan.running = true }
+
+  function setMap(name) {
+    for (var i = 0; i < maps.length; i++) if (maps[i].id === name) { saveConfig({ map: name }); return }
+  }
   function setZoom(z) { saveConfig({ zoom: Math.max(Model.MIN_ZOOM, Math.min(Model.MAX_ZOOM, z)) }) }
 
   // ------------------------------------------------------------- cutout
@@ -1090,52 +1122,20 @@ Item {
           maskSpreadAtMin: 1.0
         }
 
-        MouseArea {
-          anchors.fill: parent
-          acceptedButtons: Qt.NoButton
-          onWheel: function(wheel) {
-            if (root.cfg.map !== "weather") return
-            root.setZoom(root.cfg.zoom + (wheel.angleDelta.y > 0 ? 1 : -1))
+        // The current map plugin, cross-fading with the one it replaces.
+        Repeater {
+          model: root.maps
+          delegate: Loader {
+            required property var modelData
+            readonly property bool current: root.mapId === modelData.id
+            anchors.fill: parent
+            opacity: current ? 1 : 0
+            visible: opacity > 0
+            active: current || opacity > 0
+            Behavior on opacity { NumberAnimation { duration: 250 } }
+            Component.onCompleted: setSource(modelData.url, { minimap: root })
+            onStatusChanged: if (status === Loader.Error) console.warn("minimap: map failed to load:", modelData.url)
           }
-        }
-
-        WeatherMap {
-          anchors.fill: parent
-          opacity: root.cfg.map === "weather" ? 1 : 0
-          visible: opacity > 0
-          Behavior on opacity { NumberAnimation { duration: 250 } }
-          location: root.location
-          zoom: root.cfg.zoom
-          basemapStyle: root.cfg.basemap === "auto" ? (Model.isLightColor(Color.background) ? "light" : "dark") : root.cfg.basemap
-          radarHost: root.radarHost
-          frames: root.radarFrames
-          animate: hover.hovered && root.cfg.map === "weather"
-          nowcast: root.forecast ? Model.nowcastLine(root.forecast.rain, root.nowSec) : ""
-          nowSec: root.nowSec
-          cacheDir: root.cacheDir
-          ready: root.tilesReady
-          onWantedChanged: if (visible) root.requestTiles(wanted)
-          onVisibleChanged: if (visible) root.requestTiles(wanted)
-        }
-
-        WorkspaceMap {
-          anchors.fill: parent
-          opacity: root.cfg.map === "workspace" ? 1 : 0
-          visible: opacity > 0
-          Behavior on opacity { NumberAnimation { duration: 250 } }
-          id: wsMap
-          terrain: root.terrain
-          numbersShown: root.numbersShown
-          arcs: root.workspaceArcs
-          bandWidth: root.bandWidth
-          bandGap: root.bandGap
-          markers: root.markers
-          lastFocus: root.lastFocus
-          deskVisits: root.deskVisits
-          fogSince: root.startedAt
-          nowSec: root.nowSec
-          onFocusWindow: function(address) { root.focusWindow(address) }
-          onFocusWorkspace: function(id) { root.focusWorkspace(id) }
         }
       }
 
@@ -1214,17 +1214,18 @@ Item {
   Popover {
     id: mapMenu
     target: disc
+    onOpenChanged: if (open) root.scanMaps()
     cornerRight: root.cornerRight
     cornerBottom: root.cornerBottom
     padding: 4
 
     Column {
       Repeater {
-        model: Model.MAP_INFO
+        model: root.maps
         delegate: Rectangle {
           id: row
           required property var modelData
-          readonly property bool current: root.cfg.map === modelData.name
+          readonly property bool current: root.mapId === modelData.id
           width: 150
           height: 28
           color: rowHover.hovered ? Qt.alpha(Color.accent, 0.18) : "transparent"
@@ -1236,7 +1237,14 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             x: 8
             spacing: 10
+            Image {
+              visible: row.modelData.image !== ""
+              width: 16; height: 16
+              source: row.modelData.image
+              sourceSize.width: 32; sourceSize.height: 32
+            }
             Text {
+              visible: row.modelData.image === ""
               width: 16
               text: row.modelData.glyph
               color: row.current ? Color.accent : Color.popups.text
@@ -1244,7 +1252,7 @@ Item {
               font.pixelSize: 14
             }
             Text {
-              text: row.modelData.label
+              text: row.modelData.name
               color: row.current ? Color.accent : Color.popups.text
               font.family: Style.fontFamily
               font.pixelSize: 12
@@ -1255,7 +1263,7 @@ Item {
           MouseArea {
             anchors.fill: parent
             cursorShape: Qt.PointingHandCursor
-            onClicked: { root.setMap(row.modelData.name); mapMenu.open = false }
+            onClicked: { root.setMap(row.modelData.id); mapMenu.open = false }
           }
         }
       }
@@ -1282,7 +1290,7 @@ Item {
     function show(): void { root.saveConfig({ visible: true }) }
     function hide(): void { root.saveConfig({ visible: false }) }
     function toggle(): void { root.saveConfig({ visible: !root.shown }) }
-    function next(): void { root.setMap(Model.nextMap(root.cfg.map, 1)) }
+    function next(): void { root.setMap(Model.nextMap(root.maps, root.mapId, 1)) }
     function settings(): void { mapMenu.open = false; settingsPop.toggle() }
     function maps(): void { settingsPop.open = false; mapMenu.toggle() }
     function map(name: string): void { root.setMap(name) }

@@ -1,0 +1,7 @@
+{
+  "id": "weather",
+  "name": "Météo",
+  "icon": "󰖕",
+  "entry": "Map.qml",
+  "order": 10
+}

@@ -11,17 +11,6 @@ var MIN_ZOOM = 4
 var MAX_ZOOM = 10
 
 var CORNERS = ["bottom-right", "bottom-left", "top-right", "top-left"]
-var MAPS = ["weather", "workspace"]
-// What the map menu lists, in MAPS order. Glyphs are Nerd Font icons.
-var MAP_INFO = [
-  { name: "weather", label: "Météo", glyph: String.fromCodePoint(0xF0595) },
-  { name: "workspace", label: "Bureaux", glyph: String.fromCodePoint(0xF0379) }
-]
-
-function mapInfo(name) {
-  for (var i = 0; i < MAP_INFO.length; i++) if (MAP_INFO[i].name === name) return MAP_INFO[i]
-  return MAP_INFO[0]
-}
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)) }
 
@@ -30,7 +19,8 @@ function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)) }
 function normalizeConfig(raw) {
   var c = raw && typeof raw === "object" ? raw : {}
   var corner = CORNERS.indexOf(String(c.corner)) !== -1 ? String(c.corner) : "bottom-right"
-  var map = MAPS.indexOf(String(c.map)) !== -1 ? String(c.map) : "weather"
+  // Any map id: maps are discovered at run time (maps/<id>/map.json).
+  var map = c.map ? String(c.map) : "weather"
   var size = parseInt(c.size, 10)
   var margin = parseInt(c.margin, 10)
   var zoom = parseInt(c.zoom, 10)
@@ -66,11 +56,13 @@ function parseLocation(text) {
   }
 }
 
-function nextMap(current, step) {
-  var i = MAPS.indexOf(current)
-  if (i === -1) i = 0
-  var n = MAPS.length
-  return MAPS[((i + (step || 1)) % n + n) % n]
+// The map after `current` in the discovered list ([{id, ...}]).
+function nextMap(maps, current, step) {
+  var n = maps.length
+  if (!n) return current
+  var i = 0
+  for (var k = 0; k < n; k++) if (maps[k].id === current) i = k
+  return maps[((i + (step || 1)) % n + n) % n].id
 }
 
 // Selector buttons sit on the rim facing the screen interior, so they are
@@ -705,8 +697,6 @@ if (typeof module !== "undefined") {
     parseLocation: parseLocation,
     nextMap: nextMap,
     deskDarkness: deskDarkness,
-    mapInfo: mapInfo,
-    MAP_INFO: MAP_INFO,
     selectorAngle: selectorAngle,
     worldPixel: worldPixel,
     tilesFor: tilesFor,
