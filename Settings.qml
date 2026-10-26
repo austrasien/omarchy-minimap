@@ -132,6 +132,23 @@ Column {
 
   Row {
     spacing: 8
+    Label { text: "Heure"; height: clockToggle.height }
+    ToggleSwitch {
+      id: clockToggle
+      checked: settings.cfg.clock
+      onToggled: settings.save({ clock: !settings.cfg.clock })
+    }
+    Text {
+      anchors.verticalCenter: parent.verticalCenter
+      text: "sinon au survol"
+      color: Qt.alpha(Color.popups.text, 0.5)
+      font.family: Style.font.family
+      font.pixelSize: Style.font.caption
+    }
+  }
+
+  Row {
+    spacing: 8
     Label { text: "Sur la barre"; height: overBar.height }
     ToggleSwitch {
       id: overBar

@@ -14,9 +14,10 @@ import "Model.js" as Model
 Item {
   id: rim
 
-  property real ringWidth: 18         // dial + battery band, see below
+  property real ringWidth: 22         // dial + battery band, see below
   readonly property real dialWidth: 8
   readonly property real batteryWidth: 8   // as wide as the dial
+  readonly property real bandGap: 3        // clear space between the bands
   property var now: new Date()
   property var daylight: null        // {start, end} dial angles, or null
   property bool daytime: true
@@ -26,10 +27,10 @@ Item {
   property real batteryAfterSeconds: 0 // dashed stripe after it: runtime on a charge
 
   readonly property real r: Math.min(width, height) / 2
-  // From the outside: dial 8 px, 1 px gap, battery band 8 px, 1 px gap,
+  // From the outside: dial 8 px, 3 px gap, battery band 8 px, 3 px gap,
   // then the map's edge.
   readonly property real dialR: r - dialWidth / 2
-  readonly property real batteryR: r - dialWidth - 1 - batteryWidth / 2
+  readonly property real batteryR: r - dialWidth - bandGap - batteryWidth / 2
   readonly property real timeAngle: Model.dialAngle(Model.secondsOfDay(now))
   readonly property color sunColor: "#f6c344"
   readonly property color dayColor: Qt.alpha(sunColor, 0.55)

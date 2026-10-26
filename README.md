@@ -68,7 +68,7 @@ that window's Hyprland border (active colour when it has focus, inactive
 otherwise, same width) is carried around the cut.
 
 Clicking the clock lists the maps to pick from. Right-clicking anywhere on
-the minimap opens its settings (corner, monitor, size, opacity, over the
+the minimap opens its settings (clock, corner, monitor, size, opacity, over the
 bar, workspace compaction, cutout, weather zoom, rain alert and basemap), written to the config straight away.
 Hovering with Shift held closes the minimap like an iris and lets clicks through to
 the window under it; it comes back once the pointer leaves its corner.
@@ -186,6 +186,8 @@ workspace has a fullscreen window.
 `autoCompact`: `true` renumbers the workspaces 1..n whenever a gap appears
 (a desk emptied, a window moved away): occupied desks keep their order,
 persistent ones keep their id, an empty desk still on screen goes last.
+`clock`: `false` hides the clock, which then only shows while the minimap
+is hovered (it opens the map list).
 `rainAlert`: minutes (0–30, default 10, 0 = off) before the forecast rain
 starts to show the weather map as a notification, once per dry spell. The
 forecast comes in 15 min steps, so the start time is that precise at best.

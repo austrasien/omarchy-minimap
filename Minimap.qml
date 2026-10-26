@@ -859,7 +859,7 @@ Item {
 
   // --------------------------------------------------------------- window
 
-  readonly property int ringWidth: 18   // dial 8 + gap 1 + battery 8 + gap 1
+  readonly property int ringWidth: 22   // dial 8 + gap 3 + battery 8 + gap 3
   readonly property var targetScreen: {
     var screens = Quickshell.screens
     var want = cfg.monitor || (Hyprland.focusedMonitor ? Hyprland.focusedMonitor.name : "")
@@ -1368,8 +1368,12 @@ Item {
           batteryMode: root.batteryMode
         }
 
-        // Clock, WoW-style, on the bottom of the ring.
+        // Clock, WoW-style, on the bottom of the ring. Hidden in the
+        // settings, it still comes up on hover: it opens the map list.
         Rectangle {
+          opacity: root.cfg.clock || hover.hovered || mapMenu.open ? 1 : 0
+          visible: opacity > 0
+          Behavior on opacity { NumberAnimation { duration: 150 } }
           anchors.horizontalCenter: parent.horizontalCenter
           anchors.bottom: parent.bottom
           width: clock.implicitWidth + 12
