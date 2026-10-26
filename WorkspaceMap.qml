@@ -7,10 +7,10 @@ import "Model.js" as Model
 // The current workspace stretched onto the disc (one window fills it, two
 // side by side make two half discs), with the other occupied workspaces as
 // equal arcs around it, in order clockwise from the top. Every window shows
-// its app icon in the middle of its visible part. Agents show on their
-// window as ripples from its icon and on their workspace's arc as a blink:
-// the theme accent, slow, when a turn is done; red, fast, when blocked on a
-// permission prompt; nothing while working. The current workspace is only the disc; while you switch, the
+// its app icon in the middle of its visible part. Agents show the same way
+// on their window and on their workspace's arc: a fast red blink when
+// blocked on a permission prompt, a slow theme-accent blink when a turn is
+// done, theme-accent rings for as long as they work. The current workspace is only the disc; while you switch, the
 // arc you are heading to closes in the theme accent.
 Item {
   id: map
@@ -44,7 +44,7 @@ Item {
   }
 
   function markerColor(state) {
-    return state === "waiting" ? Color.urgent : (state === "done" ? Color.accent : Qt.alpha(Color.foreground, 0.7))
+    return state === "waiting" ? Color.urgent : Color.accent
   }
 
   function pulseFor(state) {
@@ -122,6 +122,77 @@ Item {
     }
   }
 
+  // Working agents: accent rings spreading from the middle of their arc to
+  // its ends, cut to the arc, like the rings on a window.
+  Repeater {
+    model: map.arcIds
+    delegate: Item {
+      id: arcRipple
+      required property var modelData
+      readonly property var arc: map.arcFor(modelData)
+      readonly property bool on: arc !== null && arc.state === "working" && !map.switching
+      visible: on
+      anchors.fill: parent
+      layer.enabled: on
+      layer.effect: MultiEffect {
+        maskEnabled: true
+        maskSource: arcMask
+        maskThresholdMin: 0.5
+        maskSpreadAtMin: 1.0
+      }
+
+      readonly property real bandR: map.width / 2 - map.bandWidth / 2
+      readonly property real a: arc ? arc.mid * Math.PI / 180 : 0
+      readonly property real ox: map.width / 2 + bandR * Math.sin(a)
+      readonly property real oy: map.height / 2 - bandR * Math.cos(a)
+      // Chord from the middle to an end of the arc, plus the band's width.
+      readonly property real reach: arc ? 2 * bandR * Math.sin(arc.sweep * Math.PI / 360 / 2) + map.bandWidth : 0
+      property real phase: 0
+      NumberAnimation on phase {
+        running: arcRipple.on
+        loops: Animation.Infinite
+        from: 0; to: 1
+        duration: 1800
+      }
+
+      Repeater {
+        model: 3
+        delegate: Rectangle {
+          required property int index
+          readonly property real p: (arcRipple.phase + index / 3) % 1
+          readonly property real r: Math.max(1, arcRipple.reach * p)
+          x: arcRipple.ox - r; y: arcRipple.oy - r
+          width: 2 * r; height: 2 * r
+          radius: r
+          color: "transparent"
+          border.width: 2.5
+          border.color: Color.accent
+          opacity: (1 - p) * 0.9
+        }
+      }
+
+      Shape {
+        id: arcMask
+        anchors.fill: parent
+        visible: false
+        layer.enabled: arcRipple.on
+        preferredRendererType: Shape.CurveRenderer
+        ShapePath {
+          strokeColor: "black"
+          strokeWidth: map.bandWidth
+          fillColor: "transparent"
+          capStyle: ShapePath.FlatCap
+          PathAngleArc {
+            centerX: map.width / 2; centerY: map.height / 2
+            radiusX: arcRipple.bandR; radiusY: radiusX
+            startAngle: arcRipple.arc ? arcRipple.arc.start - 90 : 0
+            sweepAngle: arcRipple.arc ? arcRipple.arc.sweep : 0
+          }
+        }
+      }
+    }
+  }
+
   Repeater {
     model: map.arcIds
     delegate: Text {
@@ -187,13 +258,27 @@ Item {
           }
         }
 
-        // Agent state as ripples from the app icon out to the window's
-        // edges (a colour change would not show on the focused window, already
-        // in the accent): fast red rings while it waits for a permission, slow
-        // accent rings once its turn is done; a working agent shows nothing.
+        // Agent state, the same as on the arcs: blocked = fast red blink,
+        // done = slow accent blink, working = accent rings spreading from the
+        // app icon to the window's edges for as long as it works.
+        Shape {
+          visible: tile.marker === "waiting" || tile.marker === "done"
+          x: -tile.x; y: -tile.y
+          width: terrain.width; height: terrain.height
+          opacity: map.pulseFor(tile.marker)
+          preferredRendererType: Shape.CurveRenderer
+          ShapePath {
+            fillColor: Qt.alpha(map.markerColor(tile.marker), 0.45)
+            strokeColor: map.markerColor(tile.marker)
+            strokeWidth: 2
+            joinStyle: ShapePath.RoundJoin
+            PathPolyline { path: tile.outline.map(function(p) { return Qt.point(p.x, p.y) }) }
+          }
+        }
+
         Item {
           id: ripple
-          readonly property bool on: tile.marker === "waiting" || tile.marker === "done"
+          readonly property bool on: tile.marker === "working"
           visible: on
           x: -tile.x; y: -tile.y
           width: terrain.width; height: terrain.height
@@ -219,7 +304,7 @@ Item {
             running: ripple.on
             loops: Animation.Infinite
             from: 0; to: 1
-            duration: tile.marker === "waiting" ? 1100 : 2600
+            duration: 1800
           }
 
           Repeater {
@@ -233,7 +318,7 @@ Item {
               radius: r
               color: "transparent"
               border.width: 2.5
-              border.color: map.markerColor(tile.marker)
+              border.color: Color.accent
               opacity: (1 - p) * 0.9
             }
           }
