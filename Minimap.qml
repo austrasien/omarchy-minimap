@@ -213,7 +213,7 @@ Item {
     }
   }
 
-  readonly property bool weatherActive: shown && mapId === "weather"
+  readonly property bool weatherActive: shown && shownMap === "weather"
   onWeatherActiveChanged: if (weatherActive && nowSec - radarFetchedAt > 300) fetchRadar()
 
   Timer {
@@ -844,7 +844,7 @@ Item {
     }
   }
 
-  readonly property bool workspaceActive: shown && mapId === "workspace"
+  readonly property bool workspaceActive: shown && shownMap === "workspace"
 
   // Tiles resize without a dedicated event (a neighbour opens, a split
   // moves), so poll while the terrain is on screen.
@@ -894,6 +894,71 @@ Item {
     }
   }
   function scanMaps() { if (!mapScan.running) mapScan.running = true }
+
+  // ------------------------------------------------------ notifications
+  //
+  // A map calls minimap.notify(this) to be shown for a moment over the
+  // chosen one. Requests queue up: the last one stays 5 s, the ones with
+  // another waiting behind them 2 s; a map already showing that asks again
+  // just restarts its time. Every change of what the disc shows turns it
+  // over like a coin: right to left in a right corner, left to right in a
+  // left one, and the other way when it comes back to the chosen map.
+
+  property var notifyQueue: []
+  property string notifyingId: ""
+  property real notifyStart: 0
+  readonly property string targetMap: notifyingId !== "" ? notifyingId : mapId
+  property string shownMap: ""
+  property real flip: 0
+  property int flipDir: 1
+
+  function mapIdOf(source) {
+    if (typeof source === "string") return source
+    for (var i = 0; i < mapLoaders.count; i++) {
+      var l = mapLoaders.itemAt(i)
+      if (l && l.item === source) return l.modelData.id
+    }
+    return ""
+  }
+
+  function notify(source) {
+    var id = mapIdOf(source)
+    if (id === "" || !shown) return
+    if (id === notifyingId) { notifyStart = Date.now(); return }
+    if (notifyQueue.indexOf(id) !== -1) return
+    notifyQueue = notifyQueue.concat([id])
+    if (notifyingId === "") nextNotification()
+  }
+
+  function nextNotification() {
+    if (!notifyQueue.length) { notifyingId = ""; return }
+    notifyingId = notifyQueue[0]
+    notifyQueue = notifyQueue.slice(1)
+    notifyStart = Date.now()
+  }
+
+  Timer {
+    interval: 100
+    running: root.notifyingId !== ""
+    repeat: true
+    onTriggered: if (Date.now() - root.notifyStart >= (root.notifyQueue.length ? 2000 : 5000)) root.nextNotification()
+  }
+
+  onTargetMapChanged: {
+    if (shownMap === "") { shownMap = targetMap; return }
+    // Towards the screen's interior going out, back the other way.
+    var out = cornerRight ? -1 : 1
+    flipDir = notifyingId !== "" ? out : -out
+    if (!flipAnim.running) flipAnim.start()
+  }
+
+  SequentialAnimation {
+    id: flipAnim
+    NumberAnimation { target: root; property: "flip"; from: 0; to: 90; duration: 230; easing.type: Easing.InQuad }
+    ScriptAction { script: root.shownMap = root.targetMap }
+    NumberAnimation { target: root; property: "flip"; from: -90; to: 0; duration: 230; easing.type: Easing.OutQuad }
+    onFinished: if (root.shownMap !== root.targetMap) flipAnim.start()
+  }
 
   function setMap(name) {
     for (var i = 0; i < maps.length; i++) if (maps[i].id === name) { saveConfig({ map: name }); return }
@@ -1235,6 +1300,13 @@ Item {
           y: root.ringWidth
           width: disc.mapSize
           height: disc.mapSize
+          // The coin turning over (see the notifications section).
+          transform: Rotation {
+            origin.x: content.width / 2
+            origin.y: content.height / 2
+            axis { x: 0; y: 1; z: 0 }
+            angle: root.flip * root.flipDir
+          }
           layer.enabled: true
           layer.effect: MultiEffect {
             maskEnabled: true
@@ -1243,20 +1315,25 @@ Item {
             maskSpreadAtMin: 1.0
           }
 
-          // The current map plugin, cross-fading with the one it replaces.
+          // Every map stays loaded so it can watch things and ask for a
+          // notification; only the one shown is visible.
           Repeater {
+            id: mapLoaders
             model: root.maps
             delegate: Loader {
               required property var modelData
-              readonly property bool current: root.mapId === modelData.id
               anchors.fill: parent
-              opacity: current ? 1 : 0
-              visible: opacity > 0
-              active: current || opacity > 0
-              Behavior on opacity { NumberAnimation { duration: 250 } }
+              visible: root.shownMap === modelData.id
               Component.onCompleted: setSource(modelData.url, { minimap: root })
               onStatusChanged: if (status === Loader.Error) console.warn("minimap: map failed to load:", modelData.url)
             }
+          }
+
+          // The coin's shading: the face turning away darkens.
+          Rectangle {
+            anchors.fill: parent
+            color: "black"
+            opacity: 0.55 * Math.sin(Math.abs(root.flip) * Math.PI / 180)
           }
         }
 
@@ -1439,6 +1516,7 @@ Item {
     function next(): void { root.setMap(Model.nextMap(root.maps, root.mapId, 1)) }
     function settings(): void { mapMenu.open = false; settingsPop.toggle() }
     function peek(): void { root.peek() }
+    function notify(map: string): void { root.notify(map) }
     function maps(): void { settingsPop.open = false; mapMenu.toggle() }
     function map(name: string): void { root.setMap(name) }
     function corner(name: string): void { root.saveConfig({ corner: name }) }

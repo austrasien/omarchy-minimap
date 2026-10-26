@@ -8,6 +8,9 @@ import "../../Model.js" as Model
 Item {
   id: view
   required property var minimap
+  // Maps stay loaded in the background: only fetch tiles when on screen.
+  readonly property bool shown: minimap.shownMap === "weather"
+  onShownChanged: if (shown) minimap.requestTiles(weather.wanted)
 
   WeatherMap {
     id: weather
@@ -23,8 +26,8 @@ Item {
     nowSec: view.minimap.nowSec
     cacheDir: view.minimap.cacheDir
     ready: view.minimap.tilesReady
-    onWantedChanged: view.minimap.requestTiles(wanted)
-    Component.onCompleted: view.minimap.requestTiles(wanted)
+    onWantedChanged: if (view.shown) view.minimap.requestTiles(wanted)
+    Component.onCompleted: if (view.shown) view.minimap.requestTiles(wanted)
   }
 
   MouseArea {

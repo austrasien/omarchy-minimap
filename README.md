@@ -117,16 +117,31 @@ Useful members of `minimap`: `now`, `nowSec`, `hovered`, `cfg` (the
 config), `location`, `forecast`, `allWindows`, `currentWorkspace`,
 `terrain`, `workspaceArcs`, `agents`, `markers`, `numbersShown`, `home`,
 `cacheDir`; and `focusWindow(address)`, `focusWorkspace(id)`,
-`setMap(id)`, `saveConfig(patch)`. Only the current map is loaded. After editing a
+`setMap(id)`, `saveConfig(patch)`, `notify(this)`. Every map stays loaded
+in the background; `minimap.shownMap` is the id on screen. After editing a
 map's QML, run `omarchy-restart-shell`. The
 shell has no Qt network access: fetch with `Process` and curl.
+
+### Notifications
+
+A map can call `minimap.notify(this)` to be shown for a moment over the
+chosen one, e.g. when something happens it watches. Requests queue up: the
+last one stays 5 s, each one with another waiting behind it 2 s; a map
+already showing that asks again restarts its time. Whenever the disc
+changes map it turns over like a coin, right to left in a right corner,
+left to right in a left one, and back the other way when it returns to the
+chosen map. `omarchy-shell austraz.minimap notify <map id>` does the same
+from a script.
 
 ### Media
 
 What is playing (MPRIS: Spotify, browsers, mpv…): the album cover fills the
 disc, a red ring grows clockwise from noon along its edge as the track
 plays; paused, the cover dims under a white pause sign. Click plays or
-pauses. Remote covers are fetched with curl into
+pauses. It notifies on pause, on a skip (a white << or >> over the cover;
+back to the previous track or restarting one reads <<) and 2.5 s before a
+track ends, so the old cover shows 2.5 s and the new one 2.5 s. Remote
+covers are fetched with curl into
 `~/.cache/austraz-minimap/covers/`.
 
 ## Data
@@ -185,6 +200,7 @@ omarchy-shell austraz.minimap next          # next map in the list
 omarchy-shell austraz.minimap maps          # open / close the map list
 omarchy-shell austraz.minimap settings      # open / close the settings
 omarchy-shell austraz.minimap peek          # hide until the pointer leaves the corner
+omarchy-shell austraz.minimap notify media  # show a map for a moment, queued
 omarchy-shell austraz.minimap map workspace  # any map id
 omarchy-shell austraz.minimap corner top-left
 omarchy-shell austraz.minimap zoomIn

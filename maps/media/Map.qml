@@ -7,6 +7,9 @@ import qs.Commons
 // Built-in map: what is playing (MPRIS). The album cover fills the disc,
 // a red ring grows clockwise from noon along its edge as the track plays,
 // and paused the cover dims under a white pause sign. Click plays/pauses.
+// It asks the minimap for a notification on pause, on a skip (with a << or
+// >> sign) and 2.5 s before a track ends, so the old cover shows 2.5 s and
+// the new one 2.5 s.
 Item {
   id: view
   required property var minimap
@@ -31,7 +34,54 @@ Item {
     interval: 500
     running: view.playing && view.player.positionSupported
     repeat: true
-    onTriggered: view.player.positionChanged()
+    onTriggered: {
+      view.player.positionChanged()
+      view.checkTrack()
+    }
+  }
+
+  // ---------------------------------------------------- notifications
+
+  readonly property string trackKey: player
+    ? player.dbusName + "|" + player.trackArtist + "|" + player.trackTitle : ""
+  property var history: []          // recent track keys, oldest first
+  property string endNotified: ""   // track whose ending was announced
+  property real endNotifiedAt: 0
+  property real lastPosition: 0
+  property string skip: ""          // "next" | "prev" while its sign shows
+
+  function showSkip(direction) {
+    skip = direction
+    skipTimer.restart()
+    minimap.notify(view)
+  }
+  Timer { id: skipTimer; interval: 1500; onTriggered: view.skip = "" }
+
+  onPlayingChanged: if (!playing && player && player.playbackState === MprisPlaybackState.Paused) minimap.notify(view)
+
+  onTrackKeyChanged: {
+    var key = trackKey
+    if (key === "") return
+    var h = history
+    var natural = Date.now() - endNotifiedAt < 4000
+    if (h.length && h[h.length - 1] !== key && !natural)
+      showSkip(h.length >= 2 && h[h.length - 2] === key ? "prev" : "next")
+    if (!h.length || h[h.length - 1] !== key) history = h.concat([key]).slice(-10)
+    lastPosition = 0
+  }
+
+  // A track about to end, or jumping back to its start (previous on a
+  // track already playing restarts it).
+  function checkTrack() {
+    if (!player || !player.lengthSupported || player.length <= 0) return
+    var pos = player.position
+    if (pos > player.length - 2.5 && endNotified !== trackKey) {
+      endNotified = trackKey
+      endNotifiedAt = Date.now()
+      minimap.notify(view)
+    }
+    if (lastPosition > 5 && pos < 2) showSkip("prev")
+    lastPosition = pos
   }
 
   // The shell has no Qt network access: remote covers (Spotify, web
@@ -103,6 +153,36 @@ Item {
         radius: width / 3
         color: "white"
       }
+    }
+  }
+
+  // A skip: the cover dims a moment under a white << or >>.
+  Rectangle {
+    anchors.fill: parent
+    color: "black"
+    opacity: view.skip !== "" && view.playing ? 0.45 : 0
+    Behavior on opacity { NumberAnimation { duration: 200 } }
+  }
+  Shape {
+    id: skipSign
+    readonly property real s: view.width * 0.15     // one triangle's width
+    readonly property real h: view.width * 0.3
+    readonly property bool back: view.skip === "prev"
+    width: 2 * s; height: h
+    anchors.centerIn: parent
+    opacity: view.skip !== "" && view.playing ? 1 : 0
+    Behavior on opacity { NumberAnimation { duration: 200 } }
+    preferredRendererType: Shape.CurveRenderer
+    transform: Scale { origin.x: skipSign.s; xScale: skipSign.back ? -1 : 1 }
+    ShapePath {
+      fillColor: "white"
+      strokeColor: "transparent"
+      PathPolyline { path: [Qt.point(0, 0), Qt.point(skipSign.s, skipSign.h / 2), Qt.point(0, skipSign.h), Qt.point(0, 0)] }
+    }
+    ShapePath {
+      fillColor: "white"
+      strokeColor: "transparent"
+      PathPolyline { path: [Qt.point(skipSign.s, 0), Qt.point(2 * skipSign.s, skipSign.h / 2), Qt.point(skipSign.s, skipSign.h), Qt.point(skipSign.s, 0)] }
     }
   }
 
