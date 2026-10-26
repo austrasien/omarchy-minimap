@@ -992,6 +992,18 @@ Item {
     persistStack = persistStack.filter(function(x) { return x !== id })
   }
 
+  // The map's notification is closed (clicked, or nothing left to show):
+  // out of the queue and the stack at once, so the chosen map comes back
+  // instead of waiting for the notification's time to run out.
+  function dismiss(source) {
+    var id = mapIdOf(source)
+    persistStack = persistStack.filter(function(x) { return x !== id })
+    var q = tempQueue.filter(function(x) { return x.id !== id })
+    if (q.length === tempQueue.length) return
+    if (tempQueue[0].id === id) tempStart = Date.now()
+    tempQueue = q
+  }
+
   Timer {
     interval: 100
     running: root.tempQueue.length > 0

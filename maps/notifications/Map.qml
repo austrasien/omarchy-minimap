@@ -118,7 +118,7 @@ Item {
     current = next
     offset = 0
     run.stop()
-    if (!current) { minimap.release(view); return }
+    if (!current) { minimap.dismiss(view); return }
     // The coin turn takes about half a second before this face shows.
     if (!current.persistent) minimap.notify(view, runMs + 700)
     if (onScreen) run.start()
@@ -156,7 +156,9 @@ Item {
   }
 
   // Clicking acts like clicking its toast (hidden by hideToasts): the
-  // notification's default action, e.g. opening what it announces.
+  // notification's default action, e.g. opening what it announces. It
+  // closes the notification, temporary or urgent; the next one in turn
+  // shows, else the minimap goes back to the chosen map.
   Process { id: invoker }
   MouseArea {
     anchors.fill: parent
