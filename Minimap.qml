@@ -475,8 +475,8 @@ Item {
   }
 
   // address → time (ms) until which a finished turn keeps blinking: three
-  // slow blinks (2.4 s each, see WorkspaceMap.slowPulse).
-  readonly property int doneFlashMs: 3 * 2400
+  // quick blinks (0.7 s each, see WorkspaceMap.donePulse).
+  readonly property int doneFlashMs: 3 * 700
   property var doneFlashes: ({})
   property real flashClock: Date.now()
   Timer {

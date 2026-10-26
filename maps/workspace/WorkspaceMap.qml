@@ -32,6 +32,13 @@ Item {
   // Shared blink clocks so every marker of a kind pulses in step.
   property real slowPulse: 1
   property real fastPulse: 1
+  // A turn finished on the current desk: three quick accent blinks.
+  property real donePulse: 1
+  SequentialAnimation on donePulse {
+    loops: Animation.Infinite
+    NumberAnimation { from: 1; to: 0.2; duration: 350; easing.type: Easing.InOutSine }
+    NumberAnimation { from: 0.2; to: 1; duration: 350; easing.type: Easing.InOutSine }
+  }
   SequentialAnimation on slowPulse {
     loops: Animation.Infinite
     NumberAnimation { from: 1; to: 0.2; duration: 1200; easing.type: Easing.InOutSine }
@@ -318,7 +325,7 @@ Item {
           visible: tile.marker === "waiting" || tile.marker === "done"
           x: -tile.x; y: -tile.y
           width: terrain.width; height: terrain.height
-          opacity: map.pulseFor(tile.marker)
+          opacity: tile.marker === "done" ? map.donePulse : map.pulseFor(tile.marker)
           preferredRendererType: Shape.CurveRenderer
           ShapePath {
             fillColor: Qt.alpha(map.markerColor(tile.marker), 0.45)
