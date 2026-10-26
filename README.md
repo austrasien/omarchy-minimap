@@ -25,6 +25,21 @@ A round, game-style minimap pinned to a screen corner of the Omarchy shell.
   that opens for it on the band (in the theme accent, fading to its own
   colour as the switch ends), while the one you go to grows out of its
   arc, which closes in the theme accent; the other arcs slide into place.
+- **System OSDs**: volume, brightness and microphone OSDs show in the
+  middle circle instead of the shell's card, when an OSD that asks first is
+  installed (austraz.audio does: `osd` answers "ok" only while the disc is
+  on screen, so the card comes back whenever it is not). Volume reads on a
+  0–200 % ring with 100 % at six o'clock and turns red past it. The face
+  pops out of the centre, the ring springs to each value behind a glowing
+  head, every step sends a ripple out (louder) or in (softer) and rolls the
+  readout like a counter, and crossing 100 % flashes red.
+- **Dictation**: while voxtype or a tool writing its state file
+  (`$XDG_RUNTIME_DIR/voxtype/state`) records, a ring of bars carries the
+  microphone as a wave flowing from noon down both sides, around a
+  microphone that swells with the voice and a breathing red rim; while it
+  transcribes, a comet circles the shortened bars under a writing pencil.
+  Levels come from `$XDG_RUNTIME_DIR/nemotron/levels.ndjson`. A dictation
+  HUD can ask `dictation` and stand aside on "ok".
 - **Rim**: a 24 h dial (noon at the top, midnight at the bottom). By day the
   arc from the real sunrise to sunset is yellow, with the sun on the current
   time; by night the arc from sunset to sunrise is blue, with the moon drawn
@@ -237,6 +252,8 @@ omarchy-shell austraz.minimap settings      # open / close the settings
 omarchy-shell austraz.minimap peek          # hide until the pointer leaves the corner
 omarchy-shell austraz.minimap notify media  # show a map for a moment, queued
 omarchy-shell austraz.minimap radar         # weather map as a notification, end of the radar loop
+omarchy-shell austraz.minimap osd '{"iconKey":"volume","icon":"","value":130,"maxValue":200,"hasProgress":true,"message":"130%"}'  # "ok" when shown
+omarchy-shell austraz.minimap dictation     # "ok" while the disc can show dictation
 omarchy-shell austraz.minimap demo prometheus legendary  # a map's own demo, if it has one
 omarchy-shell austraz.minimap map workspace  # any map id
 omarchy-shell austraz.minimap corner top-left
