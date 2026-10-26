@@ -1115,6 +1115,23 @@ Item {
 
   // ------------------------------------------------------------- peek
   //
+  // System OSDs (volume, brightness, microphone…) forwarded by the audio
+  // plugin: shown over the middle circle, without turning the coin, while
+  // the disc is on screen. Otherwise the answer is "off" and the OSD shows
+  // its own card.
+  property var osd: ({})            // { icon, message, value, max, hasProgress, duration }
+  property bool osdOpen: false
+  function showOsd(json) {
+    if (!win.visible || peeking) return false
+    try { osd = JSON.parse(json || "{}") } catch (e) { return false }
+    osdOpen = true
+    var d = osd.duration === undefined ? 1200 : Number(osd.duration)
+    if (d > 0) { osdTimer.interval = d; osdTimer.restart() }
+    else osdTimer.stop()
+    return true
+  }
+  Timer { id: osdTimer; onTriggered: root.osdOpen = false }
+
   // Shift while hovering hides the minimap (input passes straight through,
   // the picture fades out) so the corner of the window under it can be
   // clicked. It comes back once the pointer leaves its square; with no
@@ -1388,6 +1405,101 @@ Item {
             opacity: 0.55 * Math.sin(Math.abs(root.flip) * Math.PI / 180)
           }
 
+
+          // A system OSD on the middle circle: the level as a ring with a
+          // big readout, or a glyph over a message.
+          Item {
+            id: osdFace
+            readonly property real inset: root.hasWorkspaceMap ? root.bandWidth + root.bandGap : 0
+            readonly property real max: Math.max(1, Number(root.osd.max) || 100)
+            readonly property real value: Number(root.osd.value) || 0
+            readonly property bool progress: !!root.osd.hasProgress
+            readonly property bool overdriven: progress && max > 100 && value > 100
+            property real level: progress ? Math.max(0, Math.min(1, value / max)) : 0
+            Behavior on level { enabled: osdFace.opacity === 1; NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+            z: 3
+            x: inset; y: inset
+            width: content.width - 2 * inset
+            height: width
+            opacity: root.osdOpen ? 1 : 0
+            visible: opacity > 0
+            Behavior on opacity { NumberAnimation { duration: 140 } }
+
+            Rectangle {
+              anchors.fill: parent
+              radius: width / 2
+              color: Color.background
+            }
+
+            Shape {
+              anchors.fill: parent
+              visible: osdFace.progress
+              preferredRendererType: Shape.CurveRenderer
+              ShapePath {
+                strokeColor: Qt.alpha(Color.foreground, 0.15)
+                strokeWidth: 8
+                fillColor: "transparent"
+                PathAngleArc {
+                  centerX: osdFace.width / 2; centerY: osdFace.height / 2
+                  radiusX: osdFace.width / 2 - 4; radiusY: radiusX
+                  startAngle: -90; sweepAngle: 360
+                }
+              }
+              ShapePath {
+                strokeColor: osdFace.overdriven ? Color.urgent : Color.accent
+                strokeWidth: 8
+                fillColor: "transparent"
+                capStyle: ShapePath.FlatCap
+                PathAngleArc {
+                  centerX: osdFace.width / 2; centerY: osdFace.height / 2
+                  radiusX: osdFace.width / 2 - 4; radiusY: radiusX
+                  startAngle: -90; sweepAngle: 360 * osdFace.level
+                }
+              }
+              // The real 100 % when the scale goes past it (volume overdrive).
+              ShapePath {
+                strokeColor: osdFace.max > 100 ? Color.foreground : "transparent"
+                strokeWidth: 12
+                fillColor: "transparent"
+                capStyle: ShapePath.FlatCap
+                PathAngleArc {
+                  centerX: osdFace.width / 2; centerY: osdFace.height / 2
+                  radiusX: osdFace.width / 2 - 4; radiusY: radiusX
+                  startAngle: -90 + 360 * 100 / osdFace.max - 1; sweepAngle: 2
+                }
+              }
+            }
+
+            Column {
+              anchors.centerIn: parent
+              width: parent.width * 0.7
+              spacing: osdFace.width * 0.02
+              Text {
+                width: parent.width
+                horizontalAlignment: Text.AlignHCenter
+                textFormat: Text.PlainText
+                text: root.osd.icon || ""
+                color: Color.foreground
+                font.family: Style.fontFamily
+                font.pixelSize: osdFace.width * (osdFace.progress ? 0.2 : 0.26)
+              }
+              Text {
+                width: parent.width
+                horizontalAlignment: Text.AlignHCenter
+                textFormat: Text.PlainText
+                visible: text !== ""
+                text: root.osd.message || ""
+                color: Color.foreground
+                font.family: Style.fontFamily
+                font.bold: true
+                font.pixelSize: osdFace.width * (osdFace.progress ? 0.17 : 0.09)
+                wrapMode: Text.Wrap
+                maximumLineCount: 2
+                elide: Text.ElideRight
+              }
+            }
+          }
+
           Item {
             id: innerMask
             width: content.width - 2 * (root.hasWorkspaceMap ? root.bandWidth + root.bandGap : 0)
@@ -1582,6 +1694,9 @@ Item {
     function settings(): void { mapMenu.open = false; settingsPop.toggle() }
     function peek(): void { root.peek() }
     function notify(map: string): void { root.notify(map) }
+    // A system OSD (see showOsd): "ok" when shown here, else "off".
+    function osd(payload: string): string { return root.showOsd(payload) ? "ok" : "off" }
+    function closeOsd(): void { root.osdOpen = false }
     // A map's own demo, when it has one: `demo prometheus legendary`.
     function demo(map: string, arg: string): void {
       for (var i = 0; i < mapLoaders.count; i++) {
