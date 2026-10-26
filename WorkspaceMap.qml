@@ -43,6 +43,15 @@ Item {
     NumberAnimation { from: 0.15; to: 1; duration: 250 }
   }
 
+  // Shared clock for the working rings: tiles are rebuilt on every terrain
+  // refresh, so a per-tile animation would restart and jump back.
+  property real ripplePhase: 0
+  NumberAnimation on ripplePhase {
+    loops: Animation.Infinite
+    from: 0; to: 1
+    duration: 4500
+  }
+
   function markerColor(state) {
     return state === "waiting" ? Color.urgent : Color.accent
   }
@@ -147,13 +156,7 @@ Item {
       readonly property real oy: map.height / 2 - bandR * Math.cos(a)
       // Chord from the middle to an end of the arc, plus the band's width.
       readonly property real reach: arc ? 2 * bandR * Math.sin(arc.sweep * Math.PI / 360 / 2) + map.bandWidth : 0
-      property real phase: 0
-      NumberAnimation on phase {
-        running: arcRipple.on
-        loops: Animation.Infinite
-        from: 0; to: 1
-        duration: 4500
-      }
+      readonly property real phase: map.ripplePhase
 
       Repeater {
         model: 2
@@ -300,13 +303,7 @@ Item {
               m = Math.max(m, Math.hypot(tile.outline[i].x - ox, tile.outline[i].y - oy))
             return m
           }
-          property real phase: 0
-          NumberAnimation on phase {
-            running: ripple.on
-            loops: Animation.Infinite
-            from: 0; to: 1
-            duration: 4500
-          }
+          readonly property real phase: map.ripplePhase
 
           Repeater {
             model: 2
