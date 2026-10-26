@@ -1363,23 +1363,6 @@ Item {
 
         HoverHandler { id: hover }
 
-        // The wheel turns the middle circle to the previous (up) or next
-        // (down) map. A trackpad's small steps add up to one notch, and a
-        // short pause after each turn keeps one flick to one map.
-        WheelHandler {
-          target: null
-          acceptedModifiers: Qt.NoModifier
-          property real travel: 0
-          onWheel: function(event) {
-            if (wheelPause.running) { travel = 0; return }
-            travel += event.angleDelta.y
-            if (Math.abs(travel) < 120) return
-            root.setMap(Model.nextMap(root.maps, root.mapId, travel > 0 ? -1 : 1))
-            travel = 0
-            wheelPause.restart()
-          }
-        }
-        Timer { id: wheelPause; interval: 280 }
 
         // Right-click anywhere on the minimap opens its settings.
         TapHandler {
@@ -1834,6 +1817,32 @@ Item {
             font.pixelSize: 11
             font.bold: true
           }
+        }
+
+        // The wheel turns the middle circle to the previous (up) or next
+        // (down) map; Ctrl+wheel zooms the weather map. Topmost, taking no
+        // buttons, so clicks and hover still reach the maps underneath. A
+        // trackpad's small steps add up to one notch, and a short pause
+        // after each turn keeps one flick to one map.
+        MouseArea {
+          anchors.fill: parent
+          z: 100
+          acceptedButtons: Qt.NoButton
+          property real travel: 0
+          onWheel: function(wheel) {
+            if (wheel.modifiers & Qt.ControlModifier) {
+              if (root.shownMap === "weather")
+                root.setZoom(root.cfg.zoom + (wheel.angleDelta.y > 0 ? 1 : -1))
+              return
+            }
+            if (wheelPause.running) { travel = 0; return }
+            travel += wheel.angleDelta.y !== 0 ? wheel.angleDelta.y : wheel.pixelDelta.y
+            if (Math.abs(travel) < 120) return
+            root.setMap(Model.nextMap(root.maps, root.mapId, travel > 0 ? -1 : 1))
+            travel = 0
+            wheelPause.restart()
+          }
+          Timer { id: wheelPause; interval: 280 }
         }
       }
     }
