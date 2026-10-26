@@ -131,8 +131,8 @@ Item {
     }
   }
 
-  // Working agents: accent rings spreading from the middle of their arc to
-  // its ends, cut to the arc, like the rings on a window.
+  // Working agents: accent rings centred on the disc, crossing their arc
+  // from the inside out, like the rings spreading over a window.
   Repeater {
     model: map.arcIds
     delegate: Item {
@@ -151,11 +151,11 @@ Item {
       }
 
       readonly property real bandR: map.width / 2 - map.bandWidth / 2
-      readonly property real a: arc ? arc.mid * Math.PI / 180 : 0
-      readonly property real ox: map.width / 2 + bandR * Math.sin(a)
-      readonly property real oy: map.height / 2 - bandR * Math.cos(a)
-      // Chord from the middle to an end of the arc, plus the band's width.
-      readonly property real reach: arc ? 2 * bandR * Math.sin(arc.sweep * Math.PI / 360 / 2) + map.bandWidth : 0
+      // Rings centred on the disc, crossing the band from its inner edge
+      // outwards: waves from the centre, seen through the arc.
+      readonly property real ox: map.width / 2
+      readonly property real oy: map.height / 2
+      readonly property real innerR: map.width / 2 - map.bandWidth
       readonly property real phase: map.ripplePhase
 
       Repeater {
@@ -164,7 +164,7 @@ Item {
           required property int index
           readonly property real t: (arcRipple.phase + index / 2) % 1
           readonly property real p: 1 - (1 - t) * (1 - t)
-          readonly property real r: Math.max(1, arcRipple.reach * p)
+          readonly property real r: arcRipple.innerR + map.bandWidth * p
           x: arcRipple.ox - r; y: arcRipple.oy - r
           width: 2 * r; height: 2 * r
           radius: r
