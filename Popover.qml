@@ -25,8 +25,10 @@ PopupWindow {
 
   visible: open
   color: "transparent"
-  implicitWidth: body.implicitWidth + 2 * padding + 2
-  implicitHeight: body.implicitHeight + 2 * padding + 2
+  // Whole physical pixels at fractional scales (1.25, 1.5…): rounded to
+  // 4 px, else the surface is cut short and the bottom border goes.
+  implicitWidth: Math.ceil((body.implicitWidth + 2 * padding + 2) / 4) * 4
+  implicitHeight: Math.ceil((body.implicitHeight + 2 * padding + 2) / 4) * 4
 
   onImplicitWidthChanged: reanchor()
   onImplicitHeightChanged: reanchor()
