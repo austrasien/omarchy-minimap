@@ -429,7 +429,43 @@ Item {
 
   // Agents, the same way Spaces tracks them (see Model.js, agents).
   readonly property real startedAt: Date.now() / 1000
-  readonly property var markers: Model.agentWindowStates(agents, allWindows)
+  readonly property var markers: {
+    var m = Model.agentWindowStates(agents, allWindows)
+    // A finished turn always blinks a few times, even when it is seen at
+    // once (in view, or acknowledged right away).
+    var now = flashClock
+    for (var address in doneFlashes)
+      if (doneFlashes[address] > now && !m[address]) m[address] = "done"
+    return m
+  }
+
+  // address → time (ms) until which a finished turn keeps blinking: three
+  // slow blinks (2.4 s each, see WorkspaceMap.slowPulse).
+  readonly property int doneFlashMs: 3 * 2400
+  property var doneFlashes: ({})
+  property real flashClock: Date.now()
+  Timer {
+    interval: 250
+    running: Object.keys(root.doneFlashes).length > 0
+    repeat: true
+    onTriggered: {
+      root.flashClock = Date.now()
+      var next = ({}), left = false
+      for (var a in root.doneFlashes) if (root.doneFlashes[a] > root.flashClock) { next[a] = root.doneFlashes[a]; left = true }
+      if (Object.keys(next).length !== Object.keys(root.doneFlashes).length) root.doneFlashes = next
+    }
+  }
+
+  function flashDone(agent) {
+    var addresses = Model.agentAddresses(agent, Model.agentWindowsByPid(allWindows))
+    if (!addresses.length) return
+    var next = ({})
+    for (var a in doneFlashes) next[a] = doneFlashes[a]
+    var until = Date.now() + doneFlashMs
+    for (var i = 0; i < addresses.length; i++) next[addresses[i]] = until
+    flashClock = Date.now()
+    doneFlashes = next
+  }
 
   function activeAddress() {
     return Hyprland.activeToplevel ? normalizeAddress(Hyprland.activeToplevel.address) : ""
@@ -551,6 +587,7 @@ Item {
     if (!address) address = Model.agentPinAddress(pids, allWindows, activeAddress())
     var agent = { state: reported, pids: pids, address: address }
     // Finishing on the desk you are looking at needs no done blink.
+    if (reported === "done" && !(prev && prev.state === "done")) flashDone(agent)
     if (reported === "done" && agentInView(agent)) agent.state = "idle"
     next[session] = agent
     agents = next

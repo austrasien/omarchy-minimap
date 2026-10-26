@@ -152,14 +152,15 @@ Item {
         running: arcRipple.on
         loops: Animation.Infinite
         from: 0; to: 1
-        duration: 1800
+        duration: 4500
       }
 
       Repeater {
-        model: 3
+        model: 2
         delegate: Rectangle {
           required property int index
-          readonly property real p: (arcRipple.phase + index / 3) % 1
+          readonly property real t: (arcRipple.phase + index / 2) % 1
+          readonly property real p: 1 - (1 - t) * (1 - t)
           readonly property real r: Math.max(1, arcRipple.reach * p)
           x: arcRipple.ox - r; y: arcRipple.oy - r
           width: 2 * r; height: 2 * r
@@ -167,7 +168,7 @@ Item {
           color: "transparent"
           border.width: 2.5
           border.color: Color.accent
-          opacity: (1 - p) * 0.9
+          opacity: Math.sin(Math.PI * t) * 0.8
         }
       }
 
@@ -304,14 +305,16 @@ Item {
             running: ripple.on
             loops: Animation.Infinite
             from: 0; to: 1
-            duration: 1800
+            duration: 4500
           }
 
           Repeater {
-            model: 3
+            model: 2
             delegate: Rectangle {
               required property int index
-              readonly property real p: (ripple.phase + index / 3) % 1
+              // Calm: rings ease out as they widen and fade softly.
+              readonly property real t: (ripple.phase + index / 2) % 1
+              readonly property real p: 1 - (1 - t) * (1 - t)
               readonly property real r: Math.max(1, ripple.reach * p)
               x: ripple.ox - r; y: ripple.oy - r
               width: 2 * r; height: 2 * r
@@ -319,7 +322,7 @@ Item {
               color: "transparent"
               border.width: 2.5
               border.color: Color.accent
-              opacity: (1 - p) * 0.9
+              opacity: Math.sin(Math.PI * t) * 0.8
             }
           }
         }
