@@ -68,7 +68,7 @@ otherwise, same width) is carried around the cut.
 
 Clicking the clock lists the maps to pick from. Right-clicking anywhere on
 the minimap opens its settings (corner, monitor, size, opacity, over the
-bar, cutout, weather zoom and basemap), written to the config straight away.
+bar, workspace compaction, cutout, weather zoom and basemap), written to the config straight away.
 
 ## Maps
 
@@ -156,6 +156,9 @@ Hyprland's `gaps_out`. `cutout`: `false` drops the wallpaper ring.
 `overBar`: `true` puts the minimap in the screen corner over the bar (overlay
 layer, ignoring the zone the bar reserves); it then hides while the
 workspace has a fullscreen window.
+`autoCompact`: `true` renumbers the workspaces 1..n whenever a gap appears
+(a desk emptied, a window moved away): occupied desks keep their order,
+persistent ones keep their id, an empty desk still on screen goes last.
 `iconOverrides`: `{ "<window class>": "<icon name or path>" }`, for windows
 whose launcher cannot be told apart (two accounts of the same web app).
 `corner`: `bottom-right`, `bottom-left`, `top-right`, `top-left`.

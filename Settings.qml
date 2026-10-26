@@ -142,6 +142,23 @@ Column {
 
   Row {
     spacing: 8
+    Label { text: "Compacter"; height: compact.height }
+    ToggleSwitch {
+      id: compact
+      checked: settings.cfg.autoCompact
+      onToggled: settings.save({ autoCompact: !settings.cfg.autoCompact })
+    }
+    Text {
+      anchors.verticalCenter: parent.verticalCenter
+      text: "bureaux 1..n, sans trou"
+      color: Qt.alpha(Color.popups.text, 0.5)
+      font.family: Style.font.family
+      font.pixelSize: Style.font.caption
+    }
+  }
+
+  Row {
+    spacing: 8
     Label { text: "Découpe"; height: cutout.height }
     ToggleSwitch {
       id: cutout

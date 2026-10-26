@@ -35,6 +35,8 @@ function normalizeConfig(raw) {
     // true: sit over the bar in the screen corner (overlay layer) instead
     // of below the zone it reserves.
     overBar: c.overBar === true,
+    // true: renumber the workspaces 1..n whenever a gap appears.
+    autoCompact: c.autoCompact === true,
     iconOverrides: c.iconOverrides && typeof c.iconOverrides === "object" ? c.iconOverrides : {},
     zoom: isNaN(zoom) ? 7 : clamp(zoom, MIN_ZOOM, MAX_ZOOM),
     opacity: isNaN(opacity) ? 1 : clamp(opacity, 0.2, 1),
@@ -682,6 +684,33 @@ function deskDarkness(idle) {
   return Math.pow((idle - 300) / 6900, 0.6)
 }
 
+// Renumbering that closes the gaps between workspaces, like Super+Shift+
+// Backspace on an empty desk: normal workspaces become 1..n in their order,
+// persistent ones (a projector desk) keep their id and are skipped as
+// targets, empty ones that still exist go after the occupied ones.
+// `workspaces`: hyprctl workspaces -j. Returns [{ from, to }].
+function compactionPlan(workspaces) {
+  var fixed = {}, occupied = [], empty = []
+  for (var i = 0; i < workspaces.length; i++) {
+    var ws = workspaces[i]
+    if (!(ws.id > 0) || String(ws.name || "").indexOf("special") === 0) continue
+    if (ws.ispersistent) fixed[ws.id] = true
+    else if (ws.windows > 0) occupied.push(ws.id)
+    else empty.push(ws.id)
+  }
+  var num = function(a, b) { return a - b }
+  occupied.sort(num)
+  empty.sort(num)
+  var order = occupied.concat(empty)
+  var plan = [], next = 1
+  for (var k = 0; k < order.length; k++) {
+    while (fixed[next]) next++
+    if (order[k] !== next) plan.push({ from: order[k], to: next })
+    next++
+  }
+  return plan
+}
+
 // Fog of war: windows untouched for a while fade out, never below `floor`.
 function fogOpacity(lastFocused, nowSec, floor) {
   if (!lastFocused) return floor
@@ -696,6 +725,7 @@ if (typeof module !== "undefined") {
     normalizeConfig: normalizeConfig,
     parseLocation: parseLocation,
     nextMap: nextMap,
+    compactionPlan: compactionPlan,
     deskDarkness: deskDarkness,
     selectorAngle: selectorAngle,
     worldPixel: worldPixel,

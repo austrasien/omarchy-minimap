@@ -731,10 +731,53 @@ Item {
     }
   }
 
+  // ------------------------------------------------------- auto compact
+  //
+  // With autoCompact on, a gap between workspaces (a desk emptied, a window
+  // moved away) renumbers them 1..n, like Super+Shift+Backspace on an empty
+  // desk. Two passes through temporary ids so no change hits a used id.
+
+  Timer {
+    id: compactDebounce
+    interval: 400
+    onTriggered: if (root.cfg.autoCompact && !compactQuery.running) compactQuery.running = true
+  }
+
+  Process {
+    id: compactQuery
+    command: ["hyprctl", "workspaces", "-j"]
+    stdout: StdioCollector {
+      onStreamFinished: {
+        var list = []
+        try { list = JSON.parse(String(text || "[]")) } catch (e) { return }
+        if (!root.cfg.autoCompact) return
+        var plan = Model.compactionPlan(list)
+        if (!plan.length) return
+        var i
+        for (i = 0; i < plan.length; i++)
+          Hyprland.dispatch("hl.dsp.workspace.change_id({ workspace = " + plan[i].from + ", id = " + (10000 + plan[i].from) + " })")
+        for (i = 0; i < plan.length; i++)
+          Hyprland.dispatch("hl.dsp.workspace.change_id({ workspace = " + (10000 + plan[i].from) + ", id = " + plan[i].to + " })")
+        // Desk visit times follow their desk to its new number.
+        var visits = ({})
+        for (var k in root.deskVisits) visits[k] = root.deskVisits[k]
+        for (i = 0; i < plan.length; i++) delete visits[plan[i].to]
+        for (i = 0; i < plan.length; i++)
+          if (root.deskVisits[plan[i].from] !== undefined) visits[plan[i].to] = root.deskVisits[plan[i].from]
+        root.deskVisits = visits
+        refreshDebounce.restart()
+      }
+    }
+  }
+  onCfgChanged: if (cfg.autoCompact) compactDebounce.restart()
+
   Connections {
     target: Hyprland
     function onActiveToplevelChanged() { root.noteFocus(); Qt.callLater(root.acknowledgeAgents) }
     function onRawEvent(event) {
+      if (root.cfg.autoCompact && ["closewindow", "movewindow", "movewindowv2", "destroyworkspace",
+          "destroyworkspacev2", "workspace", "workspacev2"].indexOf(event.name) !== -1)
+        compactDebounce.restart()
       switch (event.name) {
       case "urgent":
         root.setUrgent(event.data, true)
