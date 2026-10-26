@@ -1,0 +1,7 @@
+{
+  "id": "notifications",
+  "name": "Notifications",
+  "icon": "󰂚",
+  "entry": "Map.qml",
+  "order": 40
+}

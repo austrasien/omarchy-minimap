@@ -77,7 +77,8 @@ the window under it; it comes back once the pointer leaves its corner.
 
 Each map is a plugin of its own: a folder under `maps/` holding a
 `map.json` and a QML entry point. Weather (`maps/weather/`), workspace
-(`maps/workspace/`) and media (`maps/media/`) are built in; add as many folders as you like next to
+(`maps/workspace/`), media (`maps/media/`) and notifications
+(`maps/notifications/`) are built in; add as many folders as you like next to
 them and they show up in the clock's list (rescanned each time it opens).
 Folders other than the built-in ones are ignored by git, so
 `omarchy plugin update` leaves them alone.
@@ -117,7 +118,8 @@ Useful members of `minimap`: `now`, `nowSec`, `hovered`, `cfg` (the
 config), `location`, `forecast`, `allWindows`, `currentWorkspace`,
 `terrain`, `workspaceArcs`, `agents`, `markers`, `numbersShown`, `home`,
 `cacheDir`; and `focusWindow(address)`, `focusWorkspace(id)`,
-`setMap(id)`, `saveConfig(patch)`, `notify(this)`. Every map stays loaded
+`setMap(id)`, `saveConfig(patch)`, `notify(this, durationMs)`,
+`iconUrl(name)`, `appIcon(appId)`. Every map stays loaded
 in the background; `minimap.shownMap` is the id on screen. After editing a
 map's QML, run `omarchy-restart-shell`. The
 shell has no Qt network access: fetch with `Process` and curl.
@@ -132,6 +134,15 @@ changes map it turns over like a coin, right to left in a right corner,
 left to right in a left one, and back the other way when it returns to the
 chosen map. `omarchy-shell austraz.minimap notify <map id>` does the same
 from a script.
+
+### Notifications map
+
+Catches Omarchy's notifications from the files the notification daemon
+keeps for its toasts (`~/.local/state/omarchy/notifications/`, watched with
+`inotifywait`). Each one is shown as a notification: its icon in the middle
+(attached image, app icon or desktop entry), its title and body running
+once around the inner edge, fading in at noon and going clockwise, upright
+at 6 o'clock, until they fade out back at noon. Several wait their turn.
 
 ### Media
 

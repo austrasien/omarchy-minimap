@@ -5,3 +5,4 @@ maps/*
 !maps/weather/
 !maps/workspace/
 !maps/media/
+!maps/notifications/
