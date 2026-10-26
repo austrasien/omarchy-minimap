@@ -270,6 +270,40 @@ Item {
 
   readonly property int currentWorkspace: Hyprland.focusedWorkspace ? Hyprland.focusedWorkspace.id : -1
 
+  // When each workspace was last left (epoch seconds), so the arcs of
+  // desks not visited for a while darken. Desks not seen since the shell
+  // started count from then.
+  property var deskVisits: ({})
+  property int previousWorkspace: -1
+  onCurrentWorkspaceChanged: {
+    var next = ({})
+    for (var k in deskVisits) next[k] = deskVisits[k]
+    var t = Date.now() / 1000
+    if (previousWorkspace !== -1) next[previousWorkspace] = t
+    next[currentWorkspace] = t
+    deskVisits = next
+    previousWorkspace = currentWorkspace
+    if (deskVisitsFile.loaded) deskVisitsFile.setText(JSON.stringify(next) + "\n")
+    Qt.callLater(acknowledgeAgents)
+  }
+
+  // Kept across shell restarts.
+  FileView {
+    id: deskVisitsFile
+    property bool loaded: false
+    path: root.home + "/.local/state/austraz-minimap/desks.json"
+    printErrors: false
+    atomicWrites: true
+    onLoaded: {
+      var saved = ({})
+      try { saved = JSON.parse(text() || "{}") || ({}) } catch (e) {}
+      for (var k in root.deskVisits) saved[k] = root.deskVisits[k]
+      root.deskVisits = saved
+      loaded = true
+    }
+    onLoadFailed: loaded = true
+  }
+
   readonly property var monitorRect: {
     root.revision
     var mon = Hyprland.focusedMonitor
@@ -606,7 +640,6 @@ Item {
     }
     if (changed) agents = next
   }
-  onCurrentWorkspaceChanged: Qt.callLater(acknowledgeAgents)
 
   function setUrgent(address, urgent) {
     var key = normalizeAddress(address)
@@ -1079,6 +1112,7 @@ Item {
           bandGap: root.bandGap
           markers: root.markers
           lastFocus: root.lastFocus
+          deskVisits: root.deskVisits
           fogSince: root.startedAt
           nowSec: root.nowSec
           onFocusWindow: function(address) { root.focusWindow(address) }

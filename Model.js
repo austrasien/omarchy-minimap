@@ -679,6 +679,14 @@ function durationText(seconds) {
   return m < 60 ? m + " min" : Math.floor(m / 60) + " h " + pad2(m % 60)
 }
 
+// How dark an unvisited desk's arc gets, 0 (plain grey) to 1 (black):
+// unchanged for 5 min, then quickly at first and slower after, black at 2 h.
+function deskDarkness(idle) {
+  if (!(idle > 300)) return 0
+  if (idle >= 7200) return 1
+  return Math.pow((idle - 300) / 6900, 0.6)
+}
+
 // Fog of war: windows untouched for a while fade out, never below `floor`.
 function fogOpacity(lastFocused, nowSec, floor) {
   if (!lastFocused) return floor
@@ -693,6 +701,7 @@ if (typeof module !== "undefined") {
     normalizeConfig: normalizeConfig,
     parseLocation: parseLocation,
     nextMap: nextMap,
+    deskDarkness: deskDarkness,
     mapInfo: mapInfo,
     MAP_INFO: MAP_INFO,
     selectorAngle: selectorAngle,

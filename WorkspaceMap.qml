@@ -20,6 +20,7 @@ Item {
   property int bandGap: 3
   property var markers: ({})         // address → working | waiting | done
   property var lastFocus: ({})       // address → epoch seconds
+  property var deskVisits: ({})      // workspace id → epoch seconds it was last left
   property real fogSince: 0          // windows not focused since start count from here
   property real nowSec: Date.now() / 1000
 
@@ -70,7 +71,10 @@ Item {
 
   function restingColor(arc) {
     if (arc.state === "waiting" || arc.state === "done") return map.markerColor(arc.state)
-    return Qt.alpha(Color.foreground, 0.16)
+    // Plain grey, darkening towards black the longer the desk goes unvisited.
+    var grey = map.mixColor(Qt.darker(Color.background, 1.15), Color.foreground, 0.3)
+    var idle = map.nowSec - (map.deskVisits[arc.id] || map.fogSince)
+    return map.mixColor(grey, Qt.rgba(0, 0, 0, 1), Model.deskDarkness(idle))
   }
 
   function arcColor(arc) {

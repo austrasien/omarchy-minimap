@@ -11,7 +11,10 @@ A round, game-style minimap pinned to a screen corner of the Omarchy shell.
   side by side make two half discs). The other occupied workspaces are equal
   arcs around it, in order clockwise from the top, each showing its apps'
   icons along the band ("+n" when they do not fit; holding Super shows the
-  desk numbers instead); hover names a workspace's apps, click switches to it. Every window shows
+  desk numbers instead). An arc darkens from grey to black the longer its
+  desk goes unvisited (from 5 min, black at 2 h; kept in
+  `~/.local/state/austraz-minimap/desks.json`). Hover names a workspace's
+  apps, click switches to it. Every window shows
   its app icon in the middle of its visible part (desktop entry, StartupWMClass for web apps) and windows
   untouched for a while fade out. Coding agents show the same way on
   their window and on their workspace's arc, no markers: a fast red blink
