@@ -128,7 +128,8 @@ Item {
     temps = temps.filter(function(it) { return !test(it) })
     stack = stack.filter(function(it) { return !test(it) })
     if (!stack.length) minimap.release(view)
-    if (current && test(current)) current = null
+    // refresh() sees the current one gone and moves on (or closes): clearing
+    // it here first would make "nothing left" look unchanged to it.
     refresh()
   }
 
