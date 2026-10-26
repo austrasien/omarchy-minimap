@@ -859,7 +859,7 @@ Item {
 
   // --------------------------------------------------------------- window
 
-  readonly property int ringWidth: 13
+  readonly property int ringWidth: 18   // dial 8 + gap 1 + battery 8 + gap 1
   readonly property var targetScreen: {
     var screens = Quickshell.screens
     var want = cfg.monitor || (Hyprland.focusedMonitor ? Hyprland.focusedMonitor.name : "")
