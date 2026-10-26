@@ -1115,6 +1115,43 @@ Item {
 
   // ------------------------------------------------------------- peek
   //
+  // Dictation (nemotron-dictation, or voxtype) shown in the middle circle
+  // while the disc is on screen. Both write one word to the voxtype state
+  // file; the microphone levels come as NDJSON while recording. Omakoe asks
+  // through IPC `dictation` and keeps its own card away on "ok".
+  readonly property string runtimeDir: Quickshell.env("XDG_RUNTIME_DIR")
+  property string dictation: "idle"
+  readonly property bool dictationShown: (dictation === "recording" || dictation === "transcribing")
+    && win.visible && !peeking
+  property real micPeak: 0
+  property bool micSpeech: false
+
+  FileView {
+    id: dictationState
+    path: root.runtimeDir + "/voxtype/state"
+    watchChanges: true
+    onFileChanged: reload()
+    onLoaded: { var t = text().trim(); root.dictation = t.length ? t : "idle" }
+  }
+  // The file may not exist until the first take, and then no watch is set.
+  Timer { interval: 250; running: true; repeat: true; onTriggered: dictationState.reload() }
+
+  Process {
+    running: root.dictation === "recording"
+    command: ["tail", "-n0", "-F", root.runtimeDir + "/nemotron/levels.ndjson"]
+    stdout: SplitParser {
+      onRead: function(line) {
+        try {
+          var f = JSON.parse(line)
+          if (f.peak === undefined) return
+          root.micPeak = f.peak
+          root.micSpeech = f.vad === 1
+        } catch (e) {}
+      }
+    }
+    onRunningChanged: if (!running) { root.micPeak = 0; root.micSpeech = false }
+  }
+
   // System OSDs (volume, brightness, microphone…) forwarded by the audio
   // plugin: shown over the middle circle, without turning the coin, while
   // the disc is on screen. Otherwise the answer is "off" and the OSD shows
@@ -1405,6 +1442,19 @@ Item {
             opacity: 0.55 * Math.sin(Math.abs(root.flip) * Math.PI / 180)
           }
 
+
+          // Dictation on the middle circle, under any OSD.
+          Dictation {
+            readonly property real inset: root.hasWorkspaceMap ? root.bandWidth + root.bandGap : 0
+            z: 3
+            x: inset; y: inset
+            width: content.width - 2 * inset
+            height: width
+            shown: root.dictationShown
+            phase: root.dictation
+            peak: root.micPeak
+            speech: root.micSpeech
+          }
 
           // A system OSD on the middle circle. It pops out of the centre with
           // the ring spinning in; the level springs to each new value behind
@@ -1883,6 +1933,8 @@ Item {
     // A system OSD (see showOsd): "ok" when shown here, else "off".
     function osd(payload: string): string { return root.showOsd(payload) ? "ok" : "off" }
     function closeOsd(): void { root.osdOpen = false }
+    // Dictation in the middle circle: "ok" while the disc is on screen.
+    function dictation(): string { return win.visible && !root.peeking ? "ok" : "off" }
     // A map's own demo, when it has one: `demo prometheus legendary`.
     function demo(map: string, arg: string): void {
       for (var i = 0; i < mapLoaders.count; i++) {
