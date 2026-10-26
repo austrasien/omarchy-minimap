@@ -108,6 +108,9 @@ and IPC write back to it.
 
 `margin`: distance from the disc to the screen edges; `-1` (default) uses
 Hyprland's `gaps_out`. `cutout`: `false` drops the wallpaper ring.
+`overBar`: `true` puts the minimap in the screen corner over the bar (overlay
+layer, ignoring the zone the bar reserves); it then hides while the
+workspace has a fullscreen window.
 `iconOverrides`: `{ "<window class>": "<icon name or path>" }`, for windows
 whose launcher cannot be told apart (two accounts of the same web app).
 `corner`: `bottom-right`, `bottom-left`, `top-right`, `top-left`.

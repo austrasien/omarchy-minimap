@@ -771,6 +771,10 @@ Item {
         // Super release may never reach us after a Super+key chord.
         root.numbersShown = false
         break
+      case "fullscreen":
+        Hyprland.refreshWorkspaces()
+        refreshDebounce.restart()
+        break
       case "workspace":
       case "workspacev2":
         root.numbersShown = false
@@ -896,8 +900,19 @@ Item {
     onTriggered: if (!wallpaperQuery.running) wallpaperQuery.running = true
   }
 
+  // Over the bar the minimap lives on the overlay layer, which also covers
+  // fullscreen windows: it steps aside while the workspace has one.
+  readonly property bool fullscreenHere: {
+    root.revision
+    var ws = Hyprland.focusedWorkspace
+    if (!ws) return false
+    if (ws.hasFullscreen !== undefined) return ws.hasFullscreen
+    return !!(ws.lastIpcObject && ws.lastIpcObject.hasfullscreen)
+  }
+
   // Where the window sits on its screen, to line the wallpaper up with the
-  // real one: anchored edges, minus the zones other layers reserve (bar).
+  // real one: anchored edges, minus the zones other layers reserve (bar),
+  // unless it sits over the bar.
   readonly property var windowOrigin: {
     root.revision
     var scr = targetScreen
@@ -907,7 +922,7 @@ Item {
     for (var i = 0; i < mons.length; i++) {
       if (mons[i].name !== scr.name) continue
       var r = mons[i].lastIpcObject ? mons[i].lastIpcObject.reserved : null
-      if (r && r.length === 4) reserved = r
+      if (r && r.length === 4 && !cfg.overBar) reserved = r
     }
     var left = cfg.corner.indexOf("left") !== -1
     var top = cfg.corner.indexOf("top") === 0
@@ -923,7 +938,7 @@ Item {
   PanelWindow {
     id: win
     screen: root.targetScreen
-    visible: root.shown && root.targetScreen !== null
+    visible: root.shown && root.targetScreen !== null && !(root.cfg.overBar && root.fullscreenHere)
     color: "transparent"
     implicitWidth: root.windowSize
     implicitHeight: root.windowSize
@@ -942,9 +957,9 @@ Item {
     }
 
     WlrLayershell.namespace: "austraz-minimap"
-    WlrLayershell.layer: WlrLayer.Top
+    WlrLayershell.layer: root.cfg.overBar ? WlrLayer.Overlay : WlrLayer.Top
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
-    exclusionMode: ExclusionMode.Normal
+    exclusionMode: root.cfg.overBar ? ExclusionMode.Ignore : ExclusionMode.Normal
     exclusiveZone: 0
 
     // Only the disc and the selector take input; the rest stays click-through.

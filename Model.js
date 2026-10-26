@@ -42,6 +42,9 @@ function normalizeConfig(raw) {
     // -1 = automatic: Hyprland's gaps_out, like a window's distance to the edge.
     margin: isNaN(margin) ? -1 : clamp(margin, 0, 200),
     cutout: c.cutout !== false,
+    // true: sit over the bar in the screen corner (overlay layer) instead
+    // of below the zone it reserves.
+    overBar: c.overBar === true,
     iconOverrides: c.iconOverrides && typeof c.iconOverrides === "object" ? c.iconOverrides : {},
     zoom: isNaN(zoom) ? 7 : clamp(zoom, MIN_ZOOM, MAX_ZOOM),
     opacity: isNaN(opacity) ? 1 : clamp(opacity, 0.2, 1),

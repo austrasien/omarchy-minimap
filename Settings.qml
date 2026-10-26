@@ -132,6 +132,16 @@ Column {
 
   Row {
     spacing: 8
+    Label { text: "Sur la barre"; height: overBar.height }
+    ToggleSwitch {
+      id: overBar
+      checked: settings.cfg.overBar
+      onToggled: settings.save({ overBar: !settings.cfg.overBar })
+    }
+  }
+
+  Row {
+    spacing: 8
     Label { text: "Découpe"; height: cutout.height }
     ToggleSwitch {
       id: cutout
