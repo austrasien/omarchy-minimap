@@ -132,7 +132,10 @@ shell has no Qt network access: fetch with `Process` and curl.
 A map can call `minimap.notify(this)` to be shown for a moment over the
 chosen one, e.g. when something happens it watches. Requests queue up: the
 last one stays 5 s, each one with another waiting behind it 2 s; a map
-already showing that asks again restarts its time. Whenever the disc
+already showing that asks again restarts its time. A notification asked with
+`notify(this, durationMs, true)` waits for the user: it stays until the
+map calls `minimap.release(this)`, letting others through for 2 s each
+and coming back after them. Whenever the disc
 changes map it turns over like a coin, right to left in a right corner,
 left to right in a left one, and back the other way when it returns to the
 chosen map. `omarchy-shell austraz.minimap notify <map id>` does the same

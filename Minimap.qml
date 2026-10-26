@@ -910,6 +910,10 @@ Item {
   property real notifyStart: 0
   // How long each map asked to stay when it is the last one (ms).
   property var notifyDurations: ({})
+  // Maps whose notification waits for the user (a question, a paused
+  // session…): it stays until the map calls release(), letting others
+  // through for 2 s each and coming back after them.
+  property var persistentIds: ({})
   readonly property real notifyDuration: notifyDurations[notifyingId] || 5000
   readonly property string targetMap: notifyingId !== "" ? notifyingId : mapId
   property string shownMap: ""
@@ -926,18 +930,33 @@ Item {
   }
 
   // `duration` (ms, default 5000) is how long it stays when nothing waits
-  // behind it, e.g. long enough for a text to scroll by.
-  function notify(source, duration) {
+  // behind it, e.g. long enough for a text to scroll by. `persistent`: it
+  // stays past that, until release().
+  function notify(source, duration, persistent) {
     var id = mapIdOf(source)
     if (id === "" || !shown) return
     var d = ({})
     for (var k in notifyDurations) d[k] = notifyDurations[k]
     d[id] = duration > 0 ? duration : 5000
     notifyDurations = d
+    var p = ({})
+    for (var j in persistentIds) if (j !== id) p[j] = true
+    if (persistent) p[id] = true
+    persistentIds = p
     if (id === notifyingId) { notifyStart = Date.now(); return }
     if (notifyQueue.indexOf(id) !== -1) return
     notifyQueue = notifyQueue.concat([id])
     if (notifyingId === "") nextNotification()
+  }
+
+  // The map's notification no longer needs to stay.
+  function release(source) {
+    var id = mapIdOf(source)
+    if (!persistentIds[id]) return
+    var p = ({})
+    for (var j in persistentIds) if (j !== id) p[j] = true
+    persistentIds = p
+    if (id === notifyingId && Date.now() - notifyStart >= notifyDuration) nextNotification()
   }
 
   function nextNotification() {
@@ -951,7 +970,16 @@ Item {
     interval: 100
     running: root.notifyingId !== ""
     repeat: true
-    onTriggered: if (Date.now() - root.notifyStart >= (root.notifyQueue.length ? 2000 : root.notifyDuration)) root.nextNotification()
+    onTriggered: {
+      if (Date.now() - root.notifyStart < (root.notifyQueue.length ? 2000 : root.notifyDuration)) return
+      if (!root.persistentIds[root.notifyingId]) { root.nextNotification(); return }
+      // Waiting for the user: others pass first, then it comes back.
+      if (root.notifyQueue.length) {
+        var back = root.notifyingId
+        root.nextNotification()
+        root.notifyQueue = root.notifyQueue.concat([back])
+      }
+    }
   }
 
   onTargetMapChanged: {
