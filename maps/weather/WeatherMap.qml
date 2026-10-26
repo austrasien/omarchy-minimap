@@ -192,7 +192,8 @@ Item {
     readonly property string label: {
       var frame = map.frames[map.shownFrame]
       var age = frame ? Model.frameAge(frame.time, map.nowSec) : ""
-      if (map.animate) return age
+      // Past frames playing (hover or a notification): their age.
+      if (map.animate || map.replayFrom >= 0) return age
       return map.nowcast !== "" ? map.nowcast : age
     }
     visible: label !== ""
