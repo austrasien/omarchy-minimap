@@ -1119,7 +1119,7 @@ Item {
   // plugin: shown over the middle circle, without turning the coin, while
   // the disc is on screen. Otherwise the answer is "off" and the OSD shows
   // its own card.
-  property var osd: ({})            // { icon, message, value, max, hasProgress, duration }
+  property var osd: ({})            // { iconKey, icon, message, value, maxValue, hasProgress, duration }
   property bool osdOpen: false
   function showOsd(json) {
     if (!win.visible || peeking) return false
@@ -1411,7 +1411,10 @@ Item {
           Item {
             id: osdFace
             readonly property real inset: root.hasWorkspaceMap ? root.bandWidth + root.bandGap : 0
-            readonly property real max: Math.max(1, Number(root.osd.max) || 100)
+            // Volume always reads on the overdrive scale: 100 % at six
+            // o'clock, 200 % back at noon.
+            readonly property bool volume: String(root.osd.iconKey || "").indexOf("volume") === 0
+            readonly property real max: volume ? 200 : Math.max(1, Number(root.osd.maxValue || root.osd.max) || 100)
             readonly property real value: Number(root.osd.value) || 0
             readonly property bool progress: !!root.osd.hasProgress
             readonly property bool overdriven: progress && max > 100 && value > 100
@@ -1489,7 +1492,7 @@ Item {
                 textFormat: Text.PlainText
                 visible: text !== ""
                 text: root.osd.message || ""
-                color: Color.foreground
+                color: osdFace.overdriven ? Color.urgent : Color.foreground
                 font.family: Style.fontFamily
                 font.bold: true
                 font.pixelSize: osdFace.width * (osdFace.progress ? 0.17 : 0.09)
