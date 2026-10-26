@@ -1531,6 +1531,13 @@ Item {
     function settings(): void { mapMenu.open = false; settingsPop.toggle() }
     function peek(): void { root.peek() }
     function notify(map: string): void { root.notify(map) }
+    // A map's own demo, when it has one: `demo prometheus legendary`.
+    function demo(map: string, arg: string): void {
+      for (var i = 0; i < mapLoaders.count; i++) {
+        var l = mapLoaders.itemAt(i)
+        if (l && l.modelData.id === map && l.item && l.item.demo) l.item.demo(arg)
+      }
+    }
     // The weather map as a notification, playing the end of the radar loop.
     function radar(): void {
       for (var i = 0; i < mapLoaders.count; i++) {

@@ -82,6 +82,9 @@ Each map is a plugin of its own: a folder under `maps/` holding a
 them and they show up in the clock's list (rescanned each time it opens).
 Folders other than the built-in ones are ignored by git, so
 `omarchy plugin update` leaves them alone.
+A map folder may be a symlink: a plugin can ship its own map and link it
+here (Prometheus does: `maps/prometheus`); its relative imports resolve
+from its real location.
 
 ```json
 {
@@ -225,6 +228,7 @@ omarchy-shell austraz.minimap settings      # open / close the settings
 omarchy-shell austraz.minimap peek          # hide until the pointer leaves the corner
 omarchy-shell austraz.minimap notify media  # show a map for a moment, queued
 omarchy-shell austraz.minimap radar         # weather map as a notification, end of the radar loop
+omarchy-shell austraz.minimap demo prometheus legendary  # a map's own demo, if it has one
 omarchy-shell austraz.minimap map workspace  # any map id
 omarchy-shell austraz.minimap corner top-left
 omarchy-shell austraz.minimap zoomIn
