@@ -31,7 +31,7 @@ A round, game-style minimap pinned to a screen corner of the Omarchy shell.
   in its real phase (mean lunation, waxing lit on the right). Between the
   map's edge and the dial, a band of its own carries the battery: on
   battery a stripe from now to the estimated empty time (level shown next to
-  the clock); charging, an orange stripe to full followed by a green one for
+  the clock), green at 100 % shading to red at 0 %, blinking under 10 %; charging, an orange stripe to full followed by a green one for
   how long that charge would last; plugged in and full, the green runtime
   from now. Runtimes use the median discharge rate of the last week (UPower
   rate history over D-Bus). Hovering adds the figures to the clock.

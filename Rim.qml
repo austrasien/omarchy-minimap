@@ -37,10 +37,22 @@ Item {
   readonly property color nightColor: Qt.alpha("#5b8cff", 0.55)
   readonly property color restColor: Qt.alpha(Color.foreground, 0.08)
   readonly property var moon: Model.moonOutline(Model.moonPhase(now.getTime() / 1000), (dialWidth + 6) / 2)
-  // On battery the stripe is bright (red when low); charging it is orange;
-  // the runtime a charge would give is green.
+  // On battery the stripe runs from green (100 %) to red (0 %) and blinks
+  // under 10 %; charging it is orange; the runtime a charge would give is green.
+  readonly property bool batteryLow: rim.batteryMode === "discharging" && rim.battery >= 0 && rim.battery < 10
+  property real blink: 1
   readonly property color batteryColor: rim.batteryMode === "charging" ? "#ff9f43"
-    : (rim.battery >= 0 && rim.battery <= 20 ? Color.urgent : Qt.alpha(Color.foreground, 0.85))
+    : rim.batteryMode === "discharging" && rim.battery >= 0
+      ? Qt.hsla(Math.min(rim.battery, 100) / 100 / 3, 0.75, 0.5, rim.batteryLow ? rim.blink : 1)
+      : Qt.alpha(Color.foreground, 0.85)
+
+  SequentialAnimation on blink {
+    running: rim.batteryLow && rim.visible
+    loops: Animation.Infinite
+    onRunningChanged: if (!running) rim.blink = 1
+    NumberAnimation { to: 0.15; duration: 500; easing.type: Easing.InOutSine }
+    NumberAnimation { to: 1; duration: 500; easing.type: Easing.InOutSine }
+  }
   readonly property color runtimeColor: "#7fd88f"
   readonly property real batteryEnd: timeAngle + Model.batterySweep(batterySeconds)
 
