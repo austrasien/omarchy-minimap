@@ -1363,6 +1363,24 @@ Item {
 
         HoverHandler { id: hover }
 
+        // The wheel turns the middle circle to the previous (up) or next
+        // (down) map. A trackpad's small steps add up to one notch, and a
+        // short pause after each turn keeps one flick to one map.
+        WheelHandler {
+          target: null
+          acceptedModifiers: Qt.NoModifier
+          property real travel: 0
+          onWheel: function(event) {
+            if (wheelPause.running) { travel = 0; return }
+            travel += event.angleDelta.y
+            if (Math.abs(travel) < 120) return
+            root.setMap(Model.nextMap(root.maps, root.mapId, travel > 0 ? -1 : 1))
+            travel = 0
+            wheelPause.restart()
+          }
+        }
+        Timer { id: wheelPause; interval: 280 }
+
         // Right-click anywhere on the minimap opens its settings.
         TapHandler {
           acceptedButtons: Qt.RightButton

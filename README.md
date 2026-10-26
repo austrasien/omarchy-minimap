@@ -2,10 +2,13 @@
 
 A round, game-style minimap pinned to a screen corner of the Omarchy shell.
 
+- **Switching maps**: the wheel over the disc turns the middle circle to the
+  previous (up) or next (down) map, as a coin; a trackpad flick turns it
+  once.
 - **Weather map**: Esri dark/light gray basemap, RainViewer radar (latest
   scan at rest, the last two hours looped while hovered), place names on top,
   you in the middle, and an Open-Meteo nowcast line ("pluie dans 20 min",
-  "sec 2 h"). Wheel zooms (4–10; radar tiles stop at 7 and are scaled up).
+  "sec 2 h"). Ctrl+wheel zooms (4–10; radar tiles stop at 7 and are scaled up).
 - **Workspace map**: the focused workspace stretched onto the disc, each
   window drawn as its rectangle cut to the circle (one window fills it, two
   side by side make two half discs). The other occupied workspaces are equal

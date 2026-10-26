@@ -4,7 +4,7 @@ import "../../Model.js" as Model
 
 // Built-in map: rain radar over the basemap around the weather location,
 // with the nowcast line. The minimap fetches the radar, the forecast and
-// the tiles; the wheel zooms. As a notification (rain alert, or
+// the tiles; Ctrl+wheel zooms. As a notification (rain alert, or
 // `omarchy-shell austraz.minimap radar`) it plays the end of the radar loop
 // within the notification's 5 s, ending on now.
 Item {
@@ -67,6 +67,11 @@ Item {
   MouseArea {
     anchors.fill: parent
     acceptedButtons: Qt.NoButton
-    onWheel: function(wheel) { view.minimap.setZoom(view.minimap.cfg.zoom + (wheel.angleDelta.y > 0 ? 1 : -1)) }
+    // Ctrl+wheel zooms; the plain wheel goes on to the minimap, which
+    // turns to the next map.
+    onWheel: function(wheel) {
+      if (!(wheel.modifiers & Qt.ControlModifier)) { wheel.accepted = false; return }
+      view.minimap.setZoom(view.minimap.cfg.zoom + (wheel.angleDelta.y > 0 ? 1 : -1))
+    }
   }
 }
