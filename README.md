@@ -76,8 +76,8 @@ the window under it; it comes back once the pointer leaves its corner.
 ## Maps
 
 Each map is a plugin of its own: a folder under `maps/` holding a
-`map.json` and a QML entry point. Weather (`maps/weather/`) and workspace
-(`maps/workspace/`) are built in; add as many folders as you like next to
+`map.json` and a QML entry point. Weather (`maps/weather/`), workspace
+(`maps/workspace/`) and media (`maps/media/`) are built in; add as many folders as you like next to
 them and they show up in the clock's list (rescanned each time it opens).
 Folders other than the built-in ones are ignored by git, so
 `omarchy plugin update` leaves them alone.
@@ -117,8 +117,17 @@ Useful members of `minimap`: `now`, `nowSec`, `hovered`, `cfg` (the
 config), `location`, `forecast`, `allWindows`, `currentWorkspace`,
 `terrain`, `workspaceArcs`, `agents`, `markers`, `numbersShown`, `home`,
 `cacheDir`; and `focusWindow(address)`, `focusWorkspace(id)`,
-`setMap(id)`, `saveConfig(patch)`. Only the current map is loaded. The
+`setMap(id)`, `saveConfig(patch)`. Only the current map is loaded. After editing a
+map's QML, run `omarchy-restart-shell`. The
 shell has no Qt network access: fetch with `Process` and curl.
+
+### Media
+
+What is playing (MPRIS: Spotify, browsers, mpv…): the album cover fills the
+disc, a red ring grows clockwise from noon along its edge as the track
+plays; paused, the cover dims under a white pause sign. Click plays or
+pauses. Remote covers are fetched with curl into
+`~/.cache/austraz-minimap/covers/`.
 
 ## Data
 

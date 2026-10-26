@@ -1,0 +1,7 @@
+{
+  "id": "media",
+  "name": "Lecture",
+  "icon": "󰝚",
+  "entry": "Map.qml",
+  "order": 30
+}
