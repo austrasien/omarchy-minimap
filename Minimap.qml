@@ -1027,6 +1027,22 @@ Item {
     peeking = true
   }
 
+  // The panel has no keyboard focus, so Qt never sees Shift: ask Hyprland
+  // (xkb keycodes 50 and 62, the two Shifts) while the pointer is over it.
+  Timer {
+    interval: 120
+    running: root.hovered && !root.peeking
+    repeat: true
+    onTriggered: if (!shiftQuery.running) shiftQuery.running = true
+  }
+  Process {
+    id: shiftQuery
+    command: ["hyprctl", "repl", "return hl.is_key_down(50) or hl.is_key_down(62)"]
+    stdout: StdioCollector {
+      onStreamFinished: if (String(text).trim() === "true" && root.hovered) root.peek()
+    }
+  }
+
   Timer {
     interval: 150
     running: root.peeking
@@ -1175,12 +1191,6 @@ Item {
       opacity: root.veil * (hover.hovered || mapMenu.open || settingsPop.open ? 1 : root.cfg.opacity)
 
       Behavior on opacity { enabled: !root.peeking; NumberAnimation { duration: 200 } }
-
-      // Shift + hover: fade the minimap away to reach what is under it.
-      HoverHandler {
-        acceptedModifiers: Qt.ShiftModifier
-        onHoveredChanged: if (hovered) root.peek()
-      }
 
       HoverHandler { id: hover }
 
