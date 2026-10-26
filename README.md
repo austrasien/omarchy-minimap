@@ -69,6 +69,8 @@ otherwise, same width) is carried around the cut.
 Clicking the clock lists the maps to pick from. Right-clicking anywhere on
 the minimap opens its settings (corner, monitor, size, opacity, over the
 bar, workspace compaction, cutout, weather zoom and basemap), written to the config straight away.
+Hovering with Shift held fades the minimap away and lets clicks through to
+the window under it; it comes back once the pointer leaves its corner.
 
 ## Maps
 
@@ -172,6 +174,7 @@ omarchy-shell austraz.minimap toggle        # show / hide
 omarchy-shell austraz.minimap next          # next map in the list
 omarchy-shell austraz.minimap maps          # open / close the map list
 omarchy-shell austraz.minimap settings      # open / close the settings
+omarchy-shell austraz.minimap peek          # hide until the pointer leaves the corner
 omarchy-shell austraz.minimap map workspace  # any map id
 omarchy-shell austraz.minimap corner top-left
 omarchy-shell austraz.minimap zoomIn

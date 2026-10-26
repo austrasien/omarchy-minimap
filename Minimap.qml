@@ -1010,6 +1010,44 @@ Item {
     }
   }
 
+  // ------------------------------------------------------------- peek
+  //
+  // Shift while hovering hides the minimap (input passes straight through,
+  // the picture fades out) so the corner of the window under it can be
+  // clicked. It comes back once the pointer leaves its square; with no
+  // input the panel cannot see that, so the cursor is polled meanwhile.
+
+  property bool peeking: false
+  property real veil: peeking ? 0 : 1
+  Behavior on veil { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+
+  function peek() {
+    mapMenu.open = false
+    settingsPop.open = false
+    peeking = true
+  }
+
+  Timer {
+    interval: 150
+    running: root.peeking
+    repeat: true
+    onTriggered: if (!cursorQuery.running) cursorQuery.running = true
+  }
+  Process {
+    id: cursorQuery
+    command: ["hyprctl", "cursorpos", "-j"]
+    stdout: StdioCollector {
+      onStreamFinished: {
+        try {
+          var c = JSON.parse(String(text || "{}"))
+          var o = root.windowOrigin
+          var x = c.x - o.mx - o.x, y = c.y - o.my - o.y
+          if (x < 0 || y < 0 || x > root.windowSize || y > root.windowSize) root.peeking = false
+        } catch (e) {}
+      }
+    }
+  }
+
   PanelWindow {
     id: win
     screen: root.targetScreen
@@ -1038,8 +1076,9 @@ Item {
     exclusiveZone: 0
 
     // Only the disc and the selector take input; the rest stays click-through.
+    // While peeking under it, nothing takes input.
     mask: Region {
-      item: disc
+      item: root.peeking ? null : disc
       shape: RegionShape.Ellipse
     }
 
@@ -1047,6 +1086,7 @@ Item {
     Item {
       id: cutout
       visible: root.ring > 0 && root.wallpaper !== ""
+      opacity: root.veil
       anchors.fill: parent
       layer.enabled: visible
       layer.effect: MultiEffect {
@@ -1098,6 +1138,7 @@ Item {
     Item {
       id: cutBorder
       readonly property var w: root.underWindow
+      opacity: root.veil
       visible: root.ring > 0 && w !== null
       x: w ? w.at[0] - root.borderSize - root.windowOrigin.mx - root.windowOrigin.x : 0
       y: w ? w.at[1] - root.borderSize - root.windowOrigin.my - root.windowOrigin.y : 0
@@ -1131,9 +1172,15 @@ Item {
       y: root.cy - height / 2
       width: root.cfg.size
       height: root.cfg.size
-      opacity: hover.hovered || mapMenu.open || settingsPop.open ? 1 : root.cfg.opacity
+      opacity: root.veil * (hover.hovered || mapMenu.open || settingsPop.open ? 1 : root.cfg.opacity)
 
-      Behavior on opacity { NumberAnimation { duration: 200 } }
+      Behavior on opacity { enabled: !root.peeking; NumberAnimation { duration: 200 } }
+
+      // Shift + hover: fade the minimap away to reach what is under it.
+      HoverHandler {
+        acceptedModifiers: Qt.ShiftModifier
+        onHoveredChanged: if (hovered) root.peek()
+      }
 
       HoverHandler { id: hover }
 
@@ -1335,6 +1382,7 @@ Item {
     function toggle(): void { root.saveConfig({ visible: !root.shown }) }
     function next(): void { root.setMap(Model.nextMap(root.maps, root.mapId, 1)) }
     function settings(): void { mapMenu.open = false; settingsPop.toggle() }
+    function peek(): void { root.peek() }
     function maps(): void { settingsPop.open = false; mapMenu.toggle() }
     function map(name: string): void { root.setMap(name) }
     function corner(name: string): void { root.saveConfig({ corner: name }) }
