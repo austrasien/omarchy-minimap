@@ -1019,7 +1019,7 @@ Item {
 
   property bool peeking: false
   property real veil: peeking ? 0 : 1
-  Behavior on veil { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+  Behavior on veil { NumberAnimation { duration: 320; easing.type: Easing.InOutCubic } }
 
   function peek() {
     mapMenu.open = false
@@ -1098,214 +1098,251 @@ Item {
       shape: RegionShape.Ellipse
     }
 
-    // The wallpaper ring, under the disc.
+    // Iris: peeking closes the whole minimap into its centre and opening
+    // grows it back out, with a thin accent ring on the moving edge.
     Item {
-      id: cutout
-      visible: root.ring > 0 && root.wallpaper !== ""
-      opacity: root.veil
+      id: iris
       anchors.fill: parent
-      layer.enabled: visible
+      readonly property real radius: (root.cutR + root.borderSize + 1) * root.veil
+      layer.enabled: root.veil < 1
       layer.effect: MultiEffect {
         maskEnabled: true
-        maskSource: cutoutMask
+        maskSource: irisMask
         maskThresholdMin: 0.5
         maskSpreadAtMin: 1.0
       }
 
-      Image {
-        x: -root.windowOrigin.x
-        y: -root.windowOrigin.y
-        width: root.windowOrigin.w
-        height: root.windowOrigin.h
-        source: root.wallpaper
-        fillMode: Image.PreserveAspectCrop
-        sourceSize.width: root.windowOrigin.w * (root.targetScreen ? root.targetScreen.devicePixelRatio : 1)
-        asynchronous: true
-        cache: true
-        smooth: true
-      }
-    }
-
-    // The cut: the disc plus the ring, and the window's corner on the side
-    // the minimap sits, from the disc centre out to that corner.
-    Item {
-      id: cutoutMask
-      anchors.fill: parent
-      layer.enabled: true
-      visible: false
-      Rectangle {
-        x: root.cx - root.cutR; y: root.cy - root.cutR
-        width: 2 * root.cutR; height: width
-        radius: width / 2
-        color: "black"
-      }
-      Rectangle {
-        x: root.cornerRight ? root.cx : 0
-        y: root.cornerBottom ? root.cy : 0
-        width: root.cornerRight ? parent.width - root.cx : root.cx
-        height: root.cornerBottom ? parent.height - root.cy : root.cy
-        color: "black"
-      }
-    }
-
-    // The cut window's border, carried around the cut: active colour when
-    // it has focus, inactive otherwise, only where that window really is
-    // (its border box) and not across the masked corner.
-    Item {
-      id: cutBorder
-      readonly property var w: root.underWindow
-      opacity: root.veil
-      visible: root.ring > 0 && w !== null
-      x: w ? w.at[0] - root.borderSize - root.windowOrigin.mx - root.windowOrigin.x : 0
-      y: w ? w.at[1] - root.borderSize - root.windowOrigin.my - root.windowOrigin.y : 0
-      width: w ? w.size[0] + 2 * root.borderSize : 0
-      height: w ? w.size[1] + 2 * root.borderSize : 0
-      clip: true
-
-      Shape {
-        x: -cutBorder.x; y: -cutBorder.y
-        width: win.width; height: win.height
-        preferredRendererType: Shape.CurveRenderer
-        ShapePath {
-          strokeColor: cutBorder.w && cutBorder.w.focused ? root.activeBorder : root.inactiveBorder
-          strokeWidth: root.borderSize
-          fillColor: "transparent"
-          capStyle: ShapePath.FlatCap
-          PathAngleArc {
-            centerX: root.cx; centerY: root.cy
-            radiusX: root.cutR + root.borderSize / 2; radiusY: radiusX
-            // Skip the quarter facing the screen corner (masked).
-            startAngle: root.cornerRight ? (root.cornerBottom ? 90 : 0) : (root.cornerBottom ? 180 : 270)
-            sweepAngle: 270
-          }
-        }
-      }
-    }
-
-    Item {
-      id: disc
-      x: root.cx - width / 2
-      y: root.cy - height / 2
-      width: root.cfg.size
-      height: root.cfg.size
-      opacity: root.veil * (hover.hovered || mapMenu.open || settingsPop.open ? 1 : root.cfg.opacity)
-
-      Behavior on opacity { enabled: !root.peeking; NumberAnimation { duration: 200 } }
-
-      HoverHandler { id: hover }
-
-      // Right-click anywhere on the minimap opens its settings.
-      TapHandler {
-        acceptedButtons: Qt.RightButton
-        onTapped: { mapMenu.open = false; settingsPop.toggle() }
-      }
-
-      readonly property real mapSize: width - 2 * root.ringWidth
-
-      Rectangle {
-        anchors.fill: parent
-        radius: width / 2
-        color: Color.background
-      }
-
+      // The wallpaper ring, under the disc.
       Item {
-        id: content
-        x: root.ringWidth
-        y: root.ringWidth
-        width: disc.mapSize
-        height: disc.mapSize
-        layer.enabled: true
+        id: cutout
+        visible: root.ring > 0 && root.wallpaper !== ""
+        anchors.fill: parent
+        layer.enabled: visible
         layer.effect: MultiEffect {
           maskEnabled: true
-          maskSource: circleMask
+          maskSource: cutoutMask
           maskThresholdMin: 0.5
           maskSpreadAtMin: 1.0
         }
 
-        // The current map plugin, cross-fading with the one it replaces.
-        Repeater {
-          model: root.maps
-          delegate: Loader {
-            required property var modelData
-            readonly property bool current: root.mapId === modelData.id
-            anchors.fill: parent
-            opacity: current ? 1 : 0
-            visible: opacity > 0
-            active: current || opacity > 0
-            Behavior on opacity { NumberAnimation { duration: 250 } }
-            Component.onCompleted: setSource(modelData.url, { minimap: root })
-            onStatusChanged: if (status === Loader.Error) console.warn("minimap: map failed to load:", modelData.url)
+        Image {
+          x: -root.windowOrigin.x
+          y: -root.windowOrigin.y
+          width: root.windowOrigin.w
+          height: root.windowOrigin.h
+          source: root.wallpaper
+          fillMode: Image.PreserveAspectCrop
+          sourceSize.width: root.windowOrigin.w * (root.targetScreen ? root.targetScreen.devicePixelRatio : 1)
+          asynchronous: true
+          cache: true
+          smooth: true
+        }
+      }
+
+      // The cut: the disc plus the ring, and the window's corner on the side
+      // the minimap sits, from the disc centre out to that corner.
+      Item {
+        id: cutoutMask
+        anchors.fill: parent
+        layer.enabled: true
+        visible: false
+        Rectangle {
+          x: root.cx - root.cutR; y: root.cy - root.cutR
+          width: 2 * root.cutR; height: width
+          radius: width / 2
+          color: "black"
+        }
+        Rectangle {
+          x: root.cornerRight ? root.cx : 0
+          y: root.cornerBottom ? root.cy : 0
+          width: root.cornerRight ? parent.width - root.cx : root.cx
+          height: root.cornerBottom ? parent.height - root.cy : root.cy
+          color: "black"
+        }
+      }
+
+      // The cut window's border, carried around the cut: active colour when
+      // it has focus, inactive otherwise, only where that window really is
+      // (its border box) and not across the masked corner.
+      Item {
+        id: cutBorder
+        readonly property var w: root.underWindow
+        visible: root.ring > 0 && w !== null
+        x: w ? w.at[0] - root.borderSize - root.windowOrigin.mx - root.windowOrigin.x : 0
+        y: w ? w.at[1] - root.borderSize - root.windowOrigin.my - root.windowOrigin.y : 0
+        width: w ? w.size[0] + 2 * root.borderSize : 0
+        height: w ? w.size[1] + 2 * root.borderSize : 0
+        clip: true
+
+        Shape {
+          x: -cutBorder.x; y: -cutBorder.y
+          width: win.width; height: win.height
+          preferredRendererType: Shape.CurveRenderer
+          ShapePath {
+            strokeColor: cutBorder.w && cutBorder.w.focused ? root.activeBorder : root.inactiveBorder
+            strokeWidth: root.borderSize
+            fillColor: "transparent"
+            capStyle: ShapePath.FlatCap
+            PathAngleArc {
+              centerX: root.cx; centerY: root.cy
+              radiusX: root.cutR + root.borderSize / 2; radiusY: radiusX
+              // Skip the quarter facing the screen corner (masked).
+              startAngle: root.cornerRight ? (root.cornerBottom ? 90 : 0) : (root.cornerBottom ? 180 : 270)
+              sweepAngle: 270
+            }
           }
         }
       }
 
       Item {
-        id: circleMask
-        width: content.width
-        height: content.height
-        layer.enabled: true
-        visible: false
-        Rectangle { anchors.fill: parent; radius: width / 2; color: "black" }
-      }
+        id: disc
+        x: root.cx - width / 2
+        y: root.cy - height / 2
+        width: root.cfg.size
+        height: root.cfg.size
+        opacity: (hover.hovered || mapMenu.open || settingsPop.open ? 1 : root.cfg.opacity)
 
-      Rectangle {
-        x: content.x - 0.5; y: content.y - 0.5
-        width: content.width + 1; height: content.height + 1
-        radius: width / 2
-        color: "transparent"
-        border.width: 1
-        border.color: Qt.alpha(Color.foreground, 0.25)
-      }
+        Behavior on opacity { enabled: !root.peeking; NumberAnimation { duration: 200 } }
 
-      Rim {
-        anchors.fill: parent
-        ringWidth: root.ringWidth
-        now: root.now
-        daylight: root.forecast ? Model.daylightArc(root.forecast.sunrise, root.forecast.sunset) : null
-        daytime: Model.isDaytime(root.nowSec, root.forecast ? root.forecast.sunrise : 0, root.forecast ? root.forecast.sunset : 0)
-        battery: root.batteryPercent
-        batterySeconds: root.batterySeconds
-        batteryAfterSeconds: root.batteryAfterSeconds
-        batteryMode: root.batteryMode
-      }
+        HoverHandler { id: hover }
 
-      // Clock, WoW-style, on the bottom of the ring.
-      Rectangle {
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.bottom: parent.bottom
-        width: clock.implicitWidth + 12
-        height: clock.implicitHeight + 2
-        radius: height / 2
-        color: Color.background
-        border.width: 1
-        border.color: mapMenu.open ? Color.accent : Qt.alpha(Color.foreground, 0.25)
+        // Right-click anywhere on the minimap opens its settings.
+        TapHandler {
+          acceptedButtons: Qt.RightButton
+          onTapped: { mapMenu.open = false; settingsPop.toggle() }
+        }
 
-        MouseArea {
+        readonly property real mapSize: width - 2 * root.ringWidth
+
+        Rectangle {
           anchors.fill: parent
-          cursorShape: Qt.PointingHandCursor
-          onClicked: { settingsPop.open = false; mapMenu.toggle() }
+          radius: width / 2
+          color: Color.background
         }
 
-        Text {
-          id: clock
-          anchors.centerIn: parent
-          // On battery the level is always there; hovering adds the times.
-          text: {
-            var t = Model.clockText(root.now)
-            if (root.batteryPercent < 0) return t
-            if (!hover.hovered) return root.batteryMode === "discharging" ? t + " · " + root.batteryPercent + "%" : t
-            var out = t + " · " + root.batteryPercent + "%"
-            if (root.batteryMode === "discharging" && root.batterySeconds > 0) out += " " + Model.durationText(root.batterySeconds)
-            if (root.batteryMode === "charging" && root.batterySeconds > 0) out += " ↑" + Model.durationText(root.batterySeconds)
-            if (root.batteryAfterSeconds > 0) out += " ~" + Model.durationText(root.batteryAfterSeconds)
-            return out
+        Item {
+          id: content
+          x: root.ringWidth
+          y: root.ringWidth
+          width: disc.mapSize
+          height: disc.mapSize
+          layer.enabled: true
+          layer.effect: MultiEffect {
+            maskEnabled: true
+            maskSource: circleMask
+            maskThresholdMin: 0.5
+            maskSpreadAtMin: 1.0
           }
-          color: Color.foreground
-          font.family: Style.fontFamily
-          font.pixelSize: 11
-          font.bold: true
+
+          // The current map plugin, cross-fading with the one it replaces.
+          Repeater {
+            model: root.maps
+            delegate: Loader {
+              required property var modelData
+              readonly property bool current: root.mapId === modelData.id
+              anchors.fill: parent
+              opacity: current ? 1 : 0
+              visible: opacity > 0
+              active: current || opacity > 0
+              Behavior on opacity { NumberAnimation { duration: 250 } }
+              Component.onCompleted: setSource(modelData.url, { minimap: root })
+              onStatusChanged: if (status === Loader.Error) console.warn("minimap: map failed to load:", modelData.url)
+            }
+          }
+        }
+
+        Item {
+          id: circleMask
+          width: content.width
+          height: content.height
+          layer.enabled: true
+          visible: false
+          Rectangle { anchors.fill: parent; radius: width / 2; color: "black" }
+        }
+
+        Rectangle {
+          x: content.x - 0.5; y: content.y - 0.5
+          width: content.width + 1; height: content.height + 1
+          radius: width / 2
+          color: "transparent"
+          border.width: 1
+          border.color: Qt.alpha(Color.foreground, 0.25)
+        }
+
+        Rim {
+          anchors.fill: parent
+          ringWidth: root.ringWidth
+          now: root.now
+          daylight: root.forecast ? Model.daylightArc(root.forecast.sunrise, root.forecast.sunset) : null
+          daytime: Model.isDaytime(root.nowSec, root.forecast ? root.forecast.sunrise : 0, root.forecast ? root.forecast.sunset : 0)
+          battery: root.batteryPercent
+          batterySeconds: root.batterySeconds
+          batteryAfterSeconds: root.batteryAfterSeconds
+          batteryMode: root.batteryMode
+        }
+
+        // Clock, WoW-style, on the bottom of the ring.
+        Rectangle {
+          anchors.horizontalCenter: parent.horizontalCenter
+          anchors.bottom: parent.bottom
+          width: clock.implicitWidth + 12
+          height: clock.implicitHeight + 2
+          radius: height / 2
+          color: Color.background
+          border.width: 1
+          border.color: mapMenu.open ? Color.accent : Qt.alpha(Color.foreground, 0.25)
+
+          MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            onClicked: { settingsPop.open = false; mapMenu.toggle() }
+          }
+
+          Text {
+            id: clock
+            anchors.centerIn: parent
+            // On battery the level is always there; hovering adds the times.
+            text: {
+              var t = Model.clockText(root.now)
+              if (root.batteryPercent < 0) return t
+              if (!hover.hovered) return root.batteryMode === "discharging" ? t + " · " + root.batteryPercent + "%" : t
+              var out = t + " · " + root.batteryPercent + "%"
+              if (root.batteryMode === "discharging" && root.batterySeconds > 0) out += " " + Model.durationText(root.batterySeconds)
+              if (root.batteryMode === "charging" && root.batterySeconds > 0) out += " ↑" + Model.durationText(root.batterySeconds)
+              if (root.batteryAfterSeconds > 0) out += " ~" + Model.durationText(root.batteryAfterSeconds)
+              return out
+            }
+            color: Color.foreground
+            font.family: Style.fontFamily
+            font.pixelSize: 11
+            font.bold: true
+          }
         }
       }
+    }
+
+    Item {
+      id: irisMask
+      anchors.fill: parent
+      layer.enabled: true
+      visible: false
+      Rectangle {
+        x: root.cx - iris.radius; y: root.cy - iris.radius
+        width: 2 * iris.radius; height: width
+        radius: width / 2
+        color: "black"
+      }
+    }
+
+    Rectangle {
+      visible: root.veil > 0.02 && root.veil < 0.98
+      x: root.cx - iris.radius; y: root.cy - iris.radius
+      width: 2 * iris.radius; height: width
+      radius: width / 2
+      color: "transparent"
+      border.width: 2
+      border.color: Color.accent
+      opacity: Math.sin(Math.PI * root.veil)
     }
   }
 
