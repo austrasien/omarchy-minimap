@@ -50,7 +50,9 @@ function normalizeConfig(raw) {
     zoom: isNaN(zoom) ? 7 : clamp(zoom, MIN_ZOOM, MAX_ZOOM),
     opacity: isNaN(opacity) ? 1 : clamp(opacity, 0.2, 1),
     monitor: c.monitor ? String(c.monitor) : "",
-    basemap: c.basemap === "light" || c.basemap === "dark" ? c.basemap : "auto"
+    basemap: c.basemap === "light" || c.basemap === "dark" ? c.basemap : "auto",
+    // Rim bands turned off in the settings (bands/<id>); the others show.
+    disabledBands: Array.isArray(c.disabledBands) ? c.disabledBands.map(String) : []
   }
 }
 

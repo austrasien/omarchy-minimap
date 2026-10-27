@@ -10,6 +10,7 @@ Column {
   id: settings
 
   required property var cfg
+  property var bands: []             // the installed rim bands, from bin/list-maps bands
   signal save(var patch)
 
   // Wide enough for the longest label.
@@ -215,6 +216,34 @@ Column {
       id: cutout
       checked: settings.cfg.cutout
       onToggled: settings.save({ cutout: !settings.cfg.cutout })
+    }
+  }
+
+  // One switch per rim band, under its own name.
+  Repeater {
+    model: settings.bands
+    delegate: Row {
+      id: bandRow
+      required property var modelData
+      readonly property bool on: settings.cfg.disabledBands.indexOf(modelData.id) === -1
+      spacing: 8
+      Label { text: bandRow.modelData.name; height: bandToggle.height }
+      ToggleSwitch {
+        id: bandToggle
+        checked: bandRow.on
+        onToggled: {
+          var off = settings.cfg.disabledBands.filter(function(id) { return id !== bandRow.modelData.id })
+          if (bandRow.on) off.push(bandRow.modelData.id)
+          settings.save({ disabledBands: off })
+        }
+      }
+      Text {
+        anchors.verticalCenter: parent.verticalCenter
+        text: "bande du rebord"
+        color: Qt.alpha(Color.popups.text, 0.5)
+        font.family: Style.font.family
+        font.pixelSize: Style.font.caption
+      }
     }
   }
 

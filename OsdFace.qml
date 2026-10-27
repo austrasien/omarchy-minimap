@@ -9,6 +9,10 @@ import qs.Commons
 // when louder, in when softer) and rolls the readout like a
 // counter, and crossing 100 % flashes red. Closing unwinds the
 // ring and folds the face back into the centre.
+// Optional fields: `color` tints the ring and head; `ghost` (0..1) draws a
+// pale arc from the level to it (a forecast); `detail` adds small lines
+// under the readout; `quiet` fades the face in and out instead (hover
+// details, see Minimap.holdOsd).
 Item {
   id: osdFace
   required property var minimap
@@ -20,7 +24,12 @@ Item {
   readonly property bool progress: !!minimap.osd.hasProgress
   readonly property bool overdriven: progress && max > 100 && value > 100
   readonly property real target: progress ? Math.max(0, Math.min(1, value / max)) : 0
-  readonly property color tint: overdriven ? Color.urgent : Color.accent
+  readonly property bool quiet: !!minimap.osd.quiet
+  // Detail lines need room: smaller icon and readout then.
+  readonly property bool detailed: !!minimap.osd.detail
+  readonly property color tint: overdriven ? Color.urgent
+    : /^#[0-9a-fA-F]{6,8}$/.test(String(minimap.osd.color || "")) ? minimap.osd.color : Color.accent
+  readonly property real ghost: progress ? Math.max(0, Math.min(1, Number(minimap.osd.ghost) || 0)) : 0
   readonly property real radius: width / 2 - 4 * minimap.uiScale
 
   // The ring as drawn: springs after the target, unwinds on close.
@@ -67,19 +76,23 @@ Item {
     function onOsdOpenChanged() {
       if (minimap.osdOpen) {
         closing.stop()
+        fadeOut.stop()
         osdFace.springy = false
         osdFace.level = 0
         osdFace.springy = true
         osdFace.level = osdFace.target
-        opening.restart()
+        if (osdFace.quiet) fadeIn.restart()
+        else opening.restart()
       } else {
         opening.stop()
-        closing.restart()
+        fadeIn.stop()
+        if (osdFace.quiet) fadeOut.restart()
+        else closing.restart()
       }
     }
   }
 
-  visible: minimap.osdOpen || closing.running
+  visible: minimap.osdOpen || closing.running || fadeOut.running
   scale: 0
   opacity: 0
 
@@ -89,6 +102,18 @@ Item {
     NumberAnimation { target: osdFace; property: "opacity"; to: 1; duration: 90 }
     NumberAnimation { target: dial; property: "rotation"; from: -120; to: 0; duration: 520; easing.type: Easing.OutCubic }
     NumberAnimation { target: readoutBox; property: "scale"; from: 0.4; to: 1; duration: 420; easing.type: Easing.OutBack; easing.overshoot: 2.2 }
+  }
+
+  // The quiet way: no pop, no spin, a short fade.
+  SequentialAnimation {
+    id: fadeIn
+    ScriptAction { script: { osdFace.scale = 1; dial.rotation = 0; readoutBox.scale = 1 } }
+    NumberAnimation { target: osdFace; property: "opacity"; to: 1; duration: 140; easing.type: Easing.OutQuad }
+  }
+  SequentialAnimation {
+    id: fadeOut
+    NumberAnimation { target: osdFace; property: "opacity"; to: 0; duration: 140; easing.type: Easing.InQuad }
+    ScriptAction { script: { osdFace.scale = 0; osdFace.springy = false } }
   }
 
   SequentialAnimation {
@@ -175,6 +200,19 @@ Item {
           startAngle: -90; sweepAngle: 360 * osdFace.shownLevel
         }
       }
+      // Where the level is heading (a forecast), pale, past the level.
+      ShapePath {
+        strokeColor: Qt.alpha(osdFace.tint, 0.3)
+        strokeWidth: 8 * minimap.uiScale
+        fillColor: "transparent"
+        capStyle: ShapePath.FlatCap
+        PathAngleArc {
+          centerX: osdFace.width / 2; centerY: osdFace.height / 2
+          radiusX: osdFace.radius; radiusY: radiusX
+          startAngle: -90 + 360 * osdFace.shownLevel
+          sweepAngle: 360 * Math.max(0, osdFace.ghost - osdFace.shownLevel)
+        }
+      }
       // The real 100 % when the scale goes past it (volume overdrive).
       ShapePath {
         strokeColor: osdFace.max > 100 ? Color.foreground : "transparent"
@@ -229,7 +267,7 @@ Item {
       color: osdFace.overdriven ? Color.urgent : Color.foreground
       Behavior on color { ColorAnimation { duration: 220 } }
       font.family: Style.fontFamily
-      font.pixelSize: osdFace.width * (osdFace.progress ? 0.2 : 0.26)
+      font.pixelSize: osdFace.width * (osdFace.detailed ? 0.13 : osdFace.progress ? 0.2 : 0.26)
       SequentialAnimation {
         id: kick
         NumberAnimation { target: osdIcon; property: "scale"; to: 1.22; duration: 70; easing.type: Easing.OutQuad }
@@ -256,7 +294,7 @@ Item {
         Behavior on color { ColorAnimation { duration: 220 } }
         font.family: Style.fontFamily
         font.bold: true
-        font.pixelSize: osdFace.width * (osdFace.progress ? 0.17 : 0.09)
+        font.pixelSize: osdFace.width * (osdFace.detailed ? 0.14 : osdFace.progress ? 0.17 : 0.09)
         wrapMode: Text.Wrap
         maximumLineCount: 2
         elide: Text.ElideRight
@@ -275,6 +313,20 @@ Item {
         maximumLineCount: 2
         elide: Text.ElideRight
       }
+    }
+    Text {
+      width: parent.width
+      visible: text !== ""
+      horizontalAlignment: Text.AlignHCenter
+      textFormat: Text.PlainText
+      text: minimap.osd.detail || ""
+      color: Qt.alpha(Color.foreground, 0.7)
+      font.family: Style.fontFamily
+      font.pixelSize: Math.round(osdFace.width * 0.065)
+      wrapMode: Text.Wrap
+      maximumLineCount: 3
+      elide: Text.ElideRight
+      lineHeight: 0.95
     }
   }
 }

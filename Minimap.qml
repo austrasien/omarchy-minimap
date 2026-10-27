@@ -318,7 +318,7 @@ Item {
     return { x: mon.x, y: mon.y, width: w, height: h }
   }
 
-  readonly property real terrainSize: cfg.size - 2 * ringWidth - 2 * (bandWidth + bandGap)
+  readonly property real terrainSize: cfg.size - 2 * rimWidth - 2 * (bandWidth + bandGap)
   // Everything drawn on the disc grows with it; 210 px is the default size.
   readonly property real uiScale: cfg.size / 210
   readonly property int bandWidth: Math.round(18 * uiScale)
@@ -896,6 +896,34 @@ Item {
   // --------------------------------------------------------------- window
 
   readonly property int ringWidth: Math.round(22 * uiScale)   // dial 8 + gap 3 + battery 8 + gap 3, scaled
+
+  // ------------------------------------------------------------ rim bands
+  //
+  // Each folder under bands/ holding a band.json is a band: a ring of its
+  // own on the rim, inside the battery band, the first one outermost. Its
+  // entry QML gets `minimap`, then `radius` (the band's centre line) and
+  // `thickness`; the map shrinks to make room. bin/list-maps bands reads
+  // them; turned off in the settings (disabledBands), a band takes no room.
+  property var rimBands: []
+  readonly property var activeRimBands: rimBands.filter(function(b) { return cfg.disabledBands.indexOf(b.id) === -1 })
+  readonly property int rimBandThickness: Math.round(8 * uiScale)   // as wide as the battery band
+  readonly property int rimBandStep: rimBandThickness + Math.round(3 * uiScale)
+  // The rim with its bands: where the map starts.
+  readonly property int rimWidth: ringWidth + activeRimBands.length * rimBandStep
+
+  Process {
+    id: bandScan
+    command: ["python3", "-I", Qt.resolvedUrl("bin/list-maps").toString().replace(/^[a-z]+:\/\//, ""), "bands"]
+    running: true
+    stdout: StdioCollector {
+      onStreamFinished: {
+        try {
+          var list = JSON.parse(String(text || "[]"))
+          if (Array.isArray(list) && JSON.stringify(list) !== JSON.stringify(root.rimBands)) root.rimBands = list
+        } catch (e) { console.warn("minimap: bad band list", e) }
+      }
+    }
+  }
   readonly property var targetScreen: {
     var screens = Quickshell.screens
     var want = cfg.monitor || (Hyprland.focusedMonitor ? Hyprland.focusedMonitor.name : "")
@@ -966,7 +994,10 @@ Item {
       }
     }
   }
-  function scanMaps() { if (!mapScan.running) mapScan.running = true }
+  function scanMaps() {
+    if (!mapScan.running) mapScan.running = true
+    if (!bandScan.running) bandScan.running = true
+  }
 
   // ------------------------------------------------------ notifications
   //
@@ -1267,15 +1298,42 @@ Item {
   property var osd: ({})            // { iconKey, icon, message, value, maxValue, hasProgress, duration }
   property bool osdOpen: false
   function showOsd(json) {
+    var o
+    try { o = JSON.parse(json || "{}") } catch (e) { return false }
+    return openOsd(o)
+  }
+  function openOsd(o) {
     if (!win.visible || peeking) return false
-    try { osd = JSON.parse(json || "{}") } catch (e) { return false }
+    osd = o
     osdOpen = true
     var d = osd.duration === undefined ? 1200 : Number(osd.duration)
     if (d > 0) { osdTimer.interval = d; osdTimer.restart() }
     else osdTimer.stop()
     return true
   }
-  Timer { id: osdTimer; onTriggered: root.osdOpen = false }
+  // From QML (rim bands): an OSD held while the pointer rests on something
+  // (no timer; `quiet: true` fades in instead of popping), one shown for
+  // `ms`, and the held one let go. A timed OSD over a held one (volume while
+  // hovering) gives the held one back when it ends.
+  property var heldOsd: null
+  function holdOsd(o) {
+    var h = Object.assign({}, o, { duration: 0 })
+    heldOsd = h
+    return openOsd(h)
+  }
+  function releaseOsd() {
+    var was = heldOsd
+    heldOsd = null
+    if (was && osd === was) osdOpen = false
+  }
+  function flashOsd(o, ms) { return openOsd(Object.assign({}, o, { duration: ms > 0 ? ms : 5000 })) }
+  Timer {
+    id: osdTimer
+    onTriggered: {
+      if (root.heldOsd && root.openOsd(root.heldOsd)) return
+      root.osdOpen = false
+    }
+  }
 
   // Shift while hovering hides the minimap (input passes straight through,
   // the picture fades out) so the corner of the window under it can be
@@ -1289,6 +1347,8 @@ Item {
   function peek() {
     mapMenu.open = false
     settingsPop.open = false
+    heldOsd = null
+    osdOpen = false
     peeking = true
   }
 
@@ -1397,7 +1457,7 @@ Item {
           onTapped: { mapMenu.open = false; settingsPop.toggle() }
         }
 
-        readonly property real mapSize: width - 2 * root.ringWidth
+        readonly property real mapSize: width - 2 * root.rimWidth
 
         Rectangle {
           anchors.fill: parent
@@ -1407,8 +1467,8 @@ Item {
 
         Item {
           id: content
-          x: root.ringWidth
-          y: root.ringWidth
+          x: root.rimWidth
+          y: root.rimWidth
           width: disc.mapSize
           height: disc.mapSize
           layer.enabled: true
@@ -1540,6 +1600,24 @@ Item {
           batterySeconds: root.batterySeconds
           batteryAfterSeconds: root.batteryAfterSeconds
           batteryMode: root.batteryMode
+        }
+
+        // The rim bands, from the battery band inwards (see rimBands).
+        Repeater {
+          model: root.activeRimBands
+          delegate: Loader {
+            id: bandLoader
+            required property var modelData
+            required property int index
+            readonly property real bandRadius: disc.width / 2 - root.ringWidth - index * root.rimBandStep - root.rimBandThickness / 2
+            anchors.fill: parent
+            Component.onCompleted: setSource(modelData.url, { minimap: root })
+            onLoaded: {
+              item.radius = Qt.binding(function() { return bandLoader.bandRadius })
+              item.thickness = Qt.binding(function() { return root.rimBandThickness })
+            }
+            onStatusChanged: if (status === Loader.Error) console.warn("minimap: band failed to load:", modelData.url)
+          }
         }
 
         // Clock, WoW-style, on the bottom of the ring. Hidden in the
@@ -1684,6 +1762,7 @@ Item {
 
     Settings {
       cfg: root.cfg
+      bands: root.rimBands
       onSave: function(patch) { root.saveConfig(patch) }
     }
   }

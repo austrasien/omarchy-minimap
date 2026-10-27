@@ -6,3 +6,5 @@ maps/*
 !maps/workspace/
 !maps/media/
 !maps/notifications/
+# Rim bands come from other plugins and stay out of git too.
+bands/*

@@ -194,6 +194,31 @@ track ends, so the old cover shows 2.5 s and the new one 2.5 s. Remote
 covers are fetched with curl into
 `~/.cache/austraz-minimap/covers/`.
 
+## Rim bands
+
+A band is a ring of its own on the rim, inside the battery band: the map
+shrinks to make room. Like maps, each is a folder, under `bands/`, holding a
+`band.json` (`id`, `name`, `entry` defaulting to `Band.qml`, `order`) and
+usually linked from the plugin that ships it; `bands/` is ignored by git.
+The first band in order sits outermost. Each one gets a switch under its
+name in the settings (`disabledBands` in the config); turned off, it takes no
+room.
+
+The entry fills the whole disc and gets `minimap`, then `radius` (the band's
+centre line) and `thickness`, kept up to date as the size changes. It draws
+its own arcs there and handles its own pointer (a `containmentMask` on the
+ring keeps the rest of the disc free). To explain itself it can use the OSD
+face in the middle circle: `minimap.holdOsd(osd)` while the pointer rests on
+something (no timer; `quiet: true` fades it in), `minimap.releaseOsd()`
+when it leaves, and `minimap.flashOsd(osd, ms)` for an alert. Besides the
+system OSD fields (`icon`, `message`, `value`, `maxValue`, `hasProgress`),
+the face takes `color` (ring tint), `ghost` (0..1, a pale arc on from the
+level, such as a forecast) and `detail` (small lines under the readout). A
+system OSD (volume) over a held one hands back to it when it ends.
+
+My Agents ships the **AI usage** band (`bands/ai`): Claude's 5-hour
+session, week and Fable week as three gauges, see its README.
+
 ## Data
 
 | What | Source |
@@ -248,6 +273,7 @@ forecast comes in 15 min steps, so the start time is that precise at best.
 whose launcher cannot be told apart (two accounts of the same web app).
 `corner`: `bottom-right`, `bottom-left`, `top-right`, `top-left`.
 `basemap`: `auto` follows the theme background, or `dark` / `light`.
+`disabledBands`: ids of the rim bands turned off (see Rim bands).
 `monitor`: a connector name such as `eDP-1`; empty follows the focused monitor.
 
 ## IPC

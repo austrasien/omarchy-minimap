@@ -1,25 +1,28 @@
 #!/usr/bin/env python3
 """Print the minimap's maps as JSON: every maps/<dir>/map.json, sorted by
-order then name. A folder without a valid map.json, or whose entry file is
-missing, is skipped. A map folder can be a symlink (a plugin shipping its
-own map): paths are resolved so the map's relative imports reach its real
-home."""
+order then name. With `bands`, the rim bands instead: every
+bands/<dir>/band.json (entry Band.qml by default). A folder without a valid
+manifest, or whose entry file is missing, is skipped. A folder can be a
+symlink (a plugin shipping its own map or band): paths are resolved so its
+relative imports reach its real home."""
 import json
 import os
 import sys
 
-root = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "maps")
+kind = "bands" if sys.argv[1:] == ["bands"] else "maps"
+manifest, default_entry = ("band.json", "Band.qml") if kind == "bands" else ("map.json", "Map.qml")
+root = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), kind)
 out = []
 for name in sorted(os.listdir(root)) if os.path.isdir(root) else []:
     folder = os.path.join(root, name)
     try:
-        with open(os.path.join(folder, "map.json"), encoding="utf-8") as f:
+        with open(os.path.join(folder, manifest), encoding="utf-8") as f:
             meta = json.load(f)
     except (OSError, ValueError):
         continue
     if not isinstance(meta, dict):
         continue
-    entry = str(meta.get("entry") or "Map.qml")
+    entry = str(meta.get("entry") or default_entry)
     path = os.path.realpath(os.path.join(folder, entry))
     if not os.path.isfile(path):
         continue
