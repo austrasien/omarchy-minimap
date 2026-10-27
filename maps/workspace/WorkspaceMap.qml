@@ -19,6 +19,7 @@ Item {
   property int bandWidth: 14
   property int bandGap: 3
   property real uiScale: 1           // the fixed sizes below are for a 210 px disc
+  readonly property real numberMargin: 3 * uiScale   // between a desk number and the band's edges
   property var markers: ({})         // address → working | waiting | done
   property var lastFocus: ({})       // address → epoch seconds
   property var deskVisits: ({})      // workspace id → epoch seconds it was last left
@@ -233,10 +234,28 @@ Item {
         ? Color.background : Color.foreground
       anchors.fill: parent
 
+      // The number as big as the band allows: its glyphs, measured at
+      // 100 px, keep `numberMargin` clear of both edges of the band and of
+      // the arc's ends, whatever the angle.
+      TextMetrics {
+        id: numberRef
+        font.family: Style.fontFamily
+        font.pixelSize: 100
+        font.bold: true
+        text: number.text
+      }
       Text {
+        id: number
         readonly property real a: arcLabels.arc ? arcLabels.arc.mid * Math.PI / 180 : 0
-        x: map.width / 2 + arcLabels.dist * Math.sin(a) - width / 2
-        y: map.height / 2 - arcLabels.dist * Math.cos(a) - height / 2
+        readonly property rect ink: numberRef.tightBoundingRect
+        readonly property real across: (ink.width * Math.abs(Math.sin(a)) + ink.height * Math.abs(Math.cos(a))) / 100
+        readonly property real along: (ink.width * Math.abs(Math.cos(a)) + ink.height * Math.abs(Math.sin(a))) / 100
+        readonly property real arcLength: arcLabels.arc ? arcLabels.arc.sweep * Math.PI / 180 * (arcLabels.dist - map.bandWidth / 2) : 0
+        readonly property real room: Math.min((map.bandWidth - 2 * map.numberMargin) / Math.max(0.01, across),
+          (arcLength - 2 * map.numberMargin) / Math.max(0.01, along))
+        readonly property real k: font.pixelSize / 100
+        x: map.width / 2 + arcLabels.dist * Math.sin(a) - (ink.x + ink.width / 2) * k
+        y: map.height / 2 - arcLabels.dist * Math.cos(a) - baselineOffset - (ink.y + ink.height / 2) * k
         visible: opacity > 0
         opacity: arcLabels.arc !== null && arcLabels.arc.sweep > 14 && arcLabels.numbered ? 1 : 0
         Behavior on opacity { NumberAnimation { duration: 150 } }
@@ -244,7 +263,7 @@ Item {
         text: arcLabels.modelData < 0 ? "0" : String(arcLabels.modelData)
         color: arcLabels.ink
         font.family: Style.fontFamily
-        font.pixelSize: Math.round(11 * map.uiScale)
+        font.pixelSize: Math.max(6, Math.floor(room))
         font.bold: true
       }
 

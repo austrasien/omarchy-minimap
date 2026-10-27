@@ -119,9 +119,10 @@ Item {
     }
   }
 
-  // Ticks at 0, 6, 12 and 18 h.
+  // A pilot's bezel: a downward triangle at the top, E, S and W at the
+  // other quarters, and a small tick at each watch hour in between.
   Repeater {
-    model: [0, 90, 180, 270]
+    model: [30, 60, 120, 150, 210, 240, 300, 330]
     delegate: Rectangle {
       required property var modelData
       width: 1.5 * rim.unit
@@ -131,6 +132,35 @@ Item {
       x: rim.r + (rim.dialR) * Math.sin(modelData * Math.PI / 180) - width / 2
       y: rim.r - (rim.dialR) * Math.cos(modelData * Math.PI / 180) - height / 2
       rotation: modelData
+    }
+  }
+
+  Shape {
+    id: noon
+    readonly property real w: rim.dialWidth * 1.3
+    readonly property real h: rim.dialWidth * 0.95
+    width: w; height: h
+    x: rim.r - w / 2
+    y: rim.r - rim.dialR - h / 2
+    preferredRendererType: Shape.CurveRenderer
+    ShapePath {
+      fillColor: Qt.alpha(Color.foreground, 0.85)
+      strokeColor: "transparent"
+      PathPolyline { path: [Qt.point(0, 0), Qt.point(noon.w, 0), Qt.point(noon.w / 2, noon.h), Qt.point(0, 0)] }
+    }
+  }
+
+  Repeater {
+    model: [{ a: 90, t: "E" }, { a: 180, t: "S" }, { a: 270, t: "W" }]
+    delegate: Text {
+      required property var modelData
+      x: rim.r + rim.dialR * Math.sin(modelData.a * Math.PI / 180) - width / 2
+      y: rim.r - rim.dialR * Math.cos(modelData.a * Math.PI / 180) - height / 2
+      text: modelData.t
+      color: Qt.alpha(Color.foreground, 0.85)
+      font.family: Style.fontFamily
+      font.pixelSize: Math.round(rim.dialWidth * 1.15)
+      font.bold: true
     }
   }
 
