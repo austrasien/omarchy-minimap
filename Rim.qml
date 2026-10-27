@@ -227,6 +227,8 @@ Item {
   MouseArea {
     anchors.fill: parent
     enabled: rim.battery >= 0
+    // Hovering shows the hand, so the band reads as clickable.
+    hoverEnabled: true
     cursorShape: Qt.PointingHandCursor
     containmentMask: QtObject {
       function contains(p: point): bool {

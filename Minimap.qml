@@ -458,6 +458,13 @@ Item {
     }
   }
 
+  function isBrowserAddress(address) {
+    var key = normalizeAddress(address)
+    for (var i = 0; i < allWindows.length; i++)
+      if (allWindows[i].address === key) return Model.isBrowserWindow(allWindows[i].appId)
+    return false
+  }
+
   function startFaviconQuery() { if (!faviconQuery.running) faviconQuery.running = true }
 
   Timer { id: faviconDebounce; interval: 180; onTriggered: { root.faviconMisses = 0; root.startFaviconQuery() } }
@@ -840,7 +847,9 @@ Item {
         break
       case "windowtitle":
       case "windowtitlev2":
-        faviconDebounce.restart()
+        // Only a browser's title tells which tab, so which favicon, is
+        // shown; terminals retitle all the time.
+        if (root.isBrowserAddress(String(event.data).split(",")[0])) faviconDebounce.restart()
         break
       case "openwindow":
         root.numbersShown = false
