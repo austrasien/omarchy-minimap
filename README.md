@@ -299,6 +299,15 @@ omarchy-shell austraz.minimap focusAlert    # Super+Caps Lock
 omarchy-shell austraz.minimap showNumbers   # held Super (hideNumbers on release)
 ```
 
+## Tests
+
+The pure helpers in `Model.js` (config, desk order and darkening, arcs,
+dial, battery, wallpaper crop) have checks for Node's test runner:
+
+```sh
+node --test test/*.test.js
+```
+
 ## Install
 
 ```bash

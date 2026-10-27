@@ -449,6 +449,12 @@ function discLayout(windows, size, fallback) {
 
 // Occupied workspaces as equal arcs around the disc, in id order,
 // clockwise, the first one centred at the top. Angles in dial degrees.
+// Order of the desks around the disc: the scratchpad (negative id, it
+// reads "0") first, then the numbered desks in order.
+function deskOrder(a, b) {
+  return (b.id < 0) - (a.id < 0) || a.id - b.id
+}
+
 function workspaceArcs(workspaces, gap) {
   var n = workspaces.length
   if (n === 0) return []
@@ -819,6 +825,10 @@ if (typeof module !== "undefined") {
     durationText: durationText,
     fogOpacity: fogOpacity,
     wallpaperCrop: wallpaperCrop,
+    deskOrder: deskOrder,
+    workspaceArcs: workspaceArcs,
+    discLayout: discLayout,
+    dialAngle: dialAngle,
     RADAR_MAX_ZOOM: RADAR_MAX_ZOOM,
     MIN_ZOOM: MIN_ZOOM,
     MAX_ZOOM: MAX_ZOOM

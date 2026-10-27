@@ -730,8 +730,7 @@ Item {
       list.push({ id: ws.id, current: ws.id === currentWorkspace, count: ws.addresses.length,
         apps: ws.apps, icons: ws.icons, state: st })
     }
-    // The scratchpad first (it reads "0"), then the numbered desks in order.
-    list.sort(function(a, b) { return (b.id < 0) - (a.id < 0) || a.id - b.id })
+    list.sort(Model.deskOrder)
     return Model.workspaceArcs(list, 4)
   }
   property var workspaceArcs: []
