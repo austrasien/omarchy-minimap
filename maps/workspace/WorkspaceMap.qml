@@ -67,22 +67,33 @@ Item {
     return Model.arcAt(map.arcs, Model.pointAngle(map.dragPoint.x, map.dragPoint.y, width))
   }
 
-  // Shared blink clocks so every marker of a kind pulses in step.
+  // Shared blink clocks so every marker of a kind pulses in step. Each runs
+  // only while something shows it: a running animation redraws the disc on
+  // every frame.
+  readonly property var shownStates: {
+    var s = ({})
+    for (var a in map.markers) s[map.markers[a]] = true
+    for (var i = 0; i < map.arcs.length; i++) if (map.arcs[i].state) s[map.arcs[i].state] = true
+    return s
+  }
   property real slowPulse: 1
   property real fastPulse: 1
   // A turn finished on the current desk: three quick accent blinks.
   property real donePulse: 1
   SequentialAnimation on donePulse {
+    running: map.visible && !!map.shownStates.done
     loops: Animation.Infinite
     NumberAnimation { from: 1; to: 0.2; duration: 350; easing.type: Easing.InOutSine }
     NumberAnimation { from: 0.2; to: 1; duration: 350; easing.type: Easing.InOutSine }
   }
   SequentialAnimation on slowPulse {
+    running: map.visible && !!map.shownStates.done
     loops: Animation.Infinite
     NumberAnimation { from: 1; to: 0.2; duration: 1200; easing.type: Easing.InOutSine }
     NumberAnimation { from: 0.2; to: 1; duration: 1200; easing.type: Easing.InOutSine }
   }
   SequentialAnimation on fastPulse {
+    running: map.visible && !!map.shownStates.waiting
     loops: Animation.Infinite
     NumberAnimation { from: 1; to: 0.15; duration: 250 }
     NumberAnimation { from: 0.15; to: 1; duration: 250 }
@@ -92,6 +103,7 @@ Item {
   // refresh, so a per-tile animation would restart and jump back.
   property real ripplePhase: 0
   NumberAnimation on ripplePhase {
+    running: map.visible && !!map.shownStates.working
     loops: Animation.Infinite
     from: 0; to: 1
     duration: 4500

@@ -324,13 +324,25 @@ Item {
   readonly property int bandWidth: Math.round(18 * uiScale)
   readonly property int bandGap: Math.round(3 * uiScale)
 
-  readonly property var terrain: {
+  readonly property var terrainNow: {
     var here = []
     for (var i = 0; i < allWindows.length; i++)
       if (allWindows[i].workspace === currentWorkspace) here.push(allWindows[i])
     var tiles = Model.discLayout(here, terrainSize, monitorRect)
     for (var j = 0; j < tiles.length; j++) tiles[j].icon = windowIcon(tiles[j])
     return { id: currentWorkspace, windows: tiles }
+  }
+  // The maps get a new terrain (and arcs, below) only when what they draw
+  // changed: a new array makes their Repeaters rebuild every tile, and the
+  // windows are re-read every 2 s and on every title change.
+  property var terrain: ({ id: -1, windows: [] })
+  property string terrainKey: ""
+  onTerrainNowChanged: syncTerrain()
+  function syncTerrain() {
+    var key = JSON.stringify(terrainNow)
+    if (key === terrainKey) return
+    terrainKey = key
+    terrain = terrainNow
   }
 
   // App icon for a window class, resolved the way Spaces does it so both
@@ -452,7 +464,11 @@ Item {
   Timer { id: faviconRetry; interval: 2000; onTriggered: root.startFaviconQuery() }
   Timer { interval: 400; running: true; onTriggered: root.startFaviconQuery() }
 
-  Component.onCompleted: iconScan.running = true
+  Component.onCompleted: {
+    syncTerrain()
+    syncArcs()
+    iconScan.running = true
+  }
 
   Connections {
     target: DesktopEntries
@@ -488,8 +504,8 @@ Item {
     repeat: true
     onTriggered: {
       root.flashClock = Date.now()
-      var next = ({}), left = false
-      for (var a in root.doneFlashes) if (root.doneFlashes[a] > root.flashClock) { next[a] = root.doneFlashes[a]; left = true }
+      var next = ({})
+      for (var a in root.doneFlashes) if (root.doneFlashes[a] > root.flashClock) next[a] = root.doneFlashes[a]
       if (Object.keys(next).length !== Object.keys(root.doneFlashes).length) root.doneFlashes = next
     }
   }
@@ -682,7 +698,7 @@ Item {
 
   // The other occupied workspaces, as arcs around the disc (the current one
   // is the disc itself).
-  readonly property var workspaceArcs: {
+  readonly property var workspaceArcsNow: {
     root.revision
     var byId = ({})
     for (var i = 0; i < allWindows.length; i++) {
@@ -709,6 +725,15 @@ Item {
     // Numbered desks in order, the scratchpad last.
     list.sort(function(a, b) { return (a.id < 0) - (b.id < 0) || a.id - b.id })
     return Model.workspaceArcs(list, 4)
+  }
+  property var workspaceArcs: []
+  property string workspaceArcsKey: ""
+  onWorkspaceArcsNowChanged: syncArcs()
+  function syncArcs() {
+    var key = JSON.stringify(workspaceArcsNow)
+    if (key === workspaceArcsKey) return
+    workspaceArcsKey = key
+    workspaceArcs = workspaceArcsNow
   }
 
   // Sends a window to another workspace without following it; the
@@ -840,7 +865,6 @@ Item {
       case "movewindowv2":
       case "changefloatingmode":
       case "focusedmon":
-      case "fullscreen":
         refreshDebounce.restart()
         break
       }
@@ -1113,19 +1137,30 @@ Item {
     return best
   }
 
-  // Follows Omarchy's current background (a symlink that theme and
-  // background switches repoint).
+  // Follows Omarchy's current background, a symlink that theme and
+  // background switches repoint (ln -nsf: deleted, then created again).
+  // bin/wallpaper-info gives "width height path", read again on each change.
+  property size wallpaperSize: Qt.size(0, 0)
   Process {
-    id: wallpaperQuery
-    command: ["readlink", "-f", root.home + "/.local/state/omarchy/current/background"]
-    stdout: StdioCollector { onStreamFinished: { var p = text.trim(); if (p) root.wallpaper = "file://" + p } }
+    id: wallpaperInfo
+    command: [Qt.resolvedUrl("bin/wallpaper-info").toString().replace(/^[a-z]+:\/\//, "")]
+    stdout: StdioCollector {
+      onStreamFinished: {
+        var m = /^(\d+) (\d+) (.+)$/.exec(String(text).trim())
+        if (!m) return
+        root.wallpaperSize = Qt.size(Number(m[1]), Number(m[2]))
+        root.wallpaper = "file://" + m[3]
+      }
+    }
   }
-  Timer {
-    interval: 10000
+  Process {
     running: root.shown && root.cfg.cutout
-    repeat: true
-    triggeredOnStart: true
-    onTriggered: if (!wallpaperQuery.running) wallpaperQuery.running = true
+    command: ["inotifywait", "-m", "-q", "-e", "create", "-e", "moved_to", "--format", "%f",
+      root.home + "/.local/state/omarchy/current"]
+    stdout: SplitParser {
+      onRead: function(line) { if (String(line) === "background" && !wallpaperInfo.running) wallpaperInfo.running = true }
+    }
+    onRunningChanged: if (running && !wallpaperInfo.running) wallpaperInfo.running = true
   }
 
   // Over the bar the minimap lives on the overlay layer, which also covers
@@ -1178,13 +1213,27 @@ Item {
 
   FileView {
     id: dictationState
+    property bool missing: false
     path: root.runtimeDir + "/voxtype/state"
     watchChanges: true
+    printErrors: false
     onFileChanged: reload()
-    onLoaded: { var t = text().trim(); root.dictation = t.length ? t : "idle" }
+    onLoaded: {
+      var t = text().trim()
+      root.dictation = t.length ? t : "idle"
+      // Found after a miss: set the watch again, now that there is a file.
+      if (missing) { missing = false; watchChanges = false; watchChanges = true }
+    }
+    onLoadFailed: missing = true
   }
-  // The file may not exist until the first take, and then no watch is set.
-  Timer { interval: 250; running: true; repeat: true; onTriggered: dictationState.reload() }
+  // The file may not exist until the first take, and then no watch is set:
+  // look for it until it shows up, while the disc is on screen.
+  Timer {
+    interval: 250
+    running: dictationState.missing && win.visible
+    repeat: true
+    onTriggered: dictationState.reload()
+  }
 
   Process {
     running: root.dictation === "recording"
@@ -1305,100 +1354,19 @@ Item {
       shape: RegionShape.Ellipse
     }
 
-    // Iris: peeking closes the whole minimap into its centre and opening
-    // grows it back out, with a thin accent ring on the moving edge.
-    Item {
+    // Peeking closes the whole minimap into its centre (Iris.qml).
+    Iris {
       id: iris
       anchors.fill: parent
-      readonly property real radius: (root.cutR + root.borderSize + 1) * root.veil
-      layer.enabled: root.veil < 1
-      layer.effect: MultiEffect {
-        maskEnabled: true
-        maskSource: irisMask
-        maskThresholdMin: 0.5
-        maskSpreadAtMin: 1.0
-      }
+      veil: root.veil
+      centerX: root.cx
+      centerY: root.cy
+      openRadius: root.cutR + root.borderSize + 1
 
-      // The wallpaper ring, under the disc.
-      Item {
-        id: cutout
-        visible: root.ring > 0 && root.wallpaper !== ""
+      // The wallpaper ring, under the disc (Cutout.qml).
+      Cutout {
         anchors.fill: parent
-        layer.enabled: visible
-        layer.effect: MultiEffect {
-          maskEnabled: true
-          maskSource: cutoutMask
-          maskThresholdMin: 0.5
-          maskSpreadAtMin: 1.0
-        }
-
-        Image {
-          x: -root.windowOrigin.x
-          y: -root.windowOrigin.y
-          width: root.windowOrigin.w
-          height: root.windowOrigin.h
-          source: root.wallpaper
-          fillMode: Image.PreserveAspectCrop
-          sourceSize.width: root.windowOrigin.w * (root.targetScreen ? root.targetScreen.devicePixelRatio : 1)
-          asynchronous: true
-          cache: true
-          smooth: true
-        }
-      }
-
-      // The cut: the disc plus the ring, and the window's corner on the side
-      // the minimap sits, from the disc centre out to that corner.
-      Item {
-        id: cutoutMask
-        anchors.fill: parent
-        layer.enabled: true
-        visible: false
-        Rectangle {
-          x: root.cx - root.cutR; y: root.cy - root.cutR
-          width: 2 * root.cutR; height: width
-          radius: width / 2
-          color: "black"
-        }
-        Rectangle {
-          x: root.cornerRight ? root.cx : 0
-          y: root.cornerBottom ? root.cy : 0
-          width: root.cornerRight ? parent.width - root.cx : root.cx
-          height: root.cornerBottom ? parent.height - root.cy : root.cy
-          color: "black"
-        }
-      }
-
-      // The cut window's border, carried around the cut: active colour when
-      // it has focus, inactive otherwise, only where that window really is
-      // (its border box) and not across the masked corner.
-      Item {
-        id: cutBorder
-        readonly property var w: root.underWindow
-        visible: root.ring > 0 && w !== null
-        x: w ? w.at[0] - root.borderSize - root.windowOrigin.mx - root.windowOrigin.x : 0
-        y: w ? w.at[1] - root.borderSize - root.windowOrigin.my - root.windowOrigin.y : 0
-        width: w ? w.size[0] + 2 * root.borderSize : 0
-        height: w ? w.size[1] + 2 * root.borderSize : 0
-        clip: true
-
-        Shape {
-          x: -cutBorder.x; y: -cutBorder.y
-          width: win.width; height: win.height
-          preferredRendererType: Shape.CurveRenderer
-          ShapePath {
-            strokeColor: cutBorder.w && cutBorder.w.focused ? root.activeBorder : root.inactiveBorder
-            strokeWidth: root.borderSize
-            fillColor: "transparent"
-            capStyle: ShapePath.FlatCap
-            PathAngleArc {
-              centerX: root.cx; centerY: root.cy
-              radiusX: root.cutR + root.borderSize / 2; radiusY: radiusX
-              // Skip the quarter facing the screen corner (masked).
-              startAngle: root.cornerRight ? (root.cornerBottom ? 90 : 0) : (root.cornerBottom ? 180 : 270)
-              sweepAngle: 270
-            }
-          }
-        }
+        minimap: root
       }
 
       Item {
@@ -1513,284 +1481,14 @@ Item {
             speech: root.micSpeech
           }
 
-          // A system OSD on the middle circle. It pops out of the centre with
-          // the ring spinning in; the level springs to each new value behind
-          // a glowing head, every step sends a ripple the way it went (out
-          // when louder, in when softer) and rolls the readout like a
-          // counter, and crossing 100 % flashes red. Closing unwinds the
-          // ring and folds the face back into the centre.
-          Item {
-            id: osdFace
+          // A system OSD on the middle circle (OsdFace.qml).
+          OsdFace {
             readonly property real inset: root.hasWorkspaceMap ? root.bandWidth + root.bandGap : 0
-            // Volume always reads on the overdrive scale: 100 % at six
-            // o'clock, 200 % back at noon.
-            readonly property bool volume: String(root.osd.iconKey || "").indexOf("volume") === 0
-            readonly property real max: volume ? 200 : Math.max(1, Number(root.osd.maxValue || root.osd.max) || 100)
-            readonly property real value: Number(root.osd.value) || 0
-            readonly property bool progress: !!root.osd.hasProgress
-            readonly property bool overdriven: progress && max > 100 && value > 100
-            readonly property real target: progress ? Math.max(0, Math.min(1, value / max)) : 0
-            readonly property color tint: overdriven ? Color.urgent : Color.accent
-            readonly property real radius: width / 2 - 4 * root.uiScale
-
-            // The ring as drawn: springs after the target, unwinds on close.
-            property real level: 0
-            property bool springy: false
-            Behavior on level {
-              enabled: osdFace.springy
-              SpringAnimation { spring: 3.2; damping: 0.26; epsilon: 0.0005 }
-            }
-            readonly property real shownLevel: Math.max(0, Math.min(1.02, level))
-            readonly property real headAngle: (-90 + 360 * shownLevel) * Math.PI / 180
-
-            property real lastValue: -1
-            property int dir: 1
-            property string readout: ""
-            property string previousReadout: ""
-            property real roll: 1
-
-            function stepped() {
-              var v = value
-              if (!root.osdOpen) {          // opening: no step to show yet
-                lastValue = v
-                readout = root.osd.message || ""
-                previousReadout = ""
-                roll = 1
-                return
-              }
-              level = target
-              if (v === lastValue && readout === (root.osd.message || "")) return
-              dir = v >= lastValue ? 1 : -1
-              lastValue = v
-              previousReadout = readout
-              readout = root.osd.message || ""
-              rollAnim.restart()
-              ripple.restart()
-              kick.restart()
-            }
-
-            onOverdrivenChanged: if (overdriven && root.osdOpen) flash.restart()
-
-            Connections {
-              target: root
-              function onOsdChanged() { osdFace.stepped() }
-              function onOsdOpenChanged() {
-                if (root.osdOpen) {
-                  closing.stop()
-                  osdFace.springy = false
-                  osdFace.level = 0
-                  osdFace.springy = true
-                  osdFace.level = osdFace.target
-                  opening.restart()
-                } else {
-                  opening.stop()
-                  closing.restart()
-                }
-              }
-            }
-
+            minimap: root
             z: 3
             x: inset; y: inset
             width: content.width - 2 * inset
             height: width
-            visible: root.osdOpen || closing.running
-            scale: 0
-            opacity: 0
-
-            ParallelAnimation {
-              id: opening
-              NumberAnimation { target: osdFace; property: "scale"; to: 1; duration: 380; easing.type: Easing.OutBack; easing.overshoot: 1.8 }
-              NumberAnimation { target: osdFace; property: "opacity"; to: 1; duration: 90 }
-              NumberAnimation { target: dial; property: "rotation"; from: -120; to: 0; duration: 520; easing.type: Easing.OutCubic }
-              NumberAnimation { target: readoutBox; property: "scale"; from: 0.4; to: 1; duration: 420; easing.type: Easing.OutBack; easing.overshoot: 2.2 }
-            }
-
-            SequentialAnimation {
-              id: closing
-              ParallelAnimation {
-                NumberAnimation { target: osdFace; property: "level"; to: 0; duration: 240; easing.type: Easing.InCubic }
-                NumberAnimation { target: dial; property: "rotation"; to: 90; duration: 240; easing.type: Easing.InCubic }
-                NumberAnimation { target: readoutBox; property: "scale"; to: 0.5; duration: 240; easing.type: Easing.InBack }
-              }
-              ParallelAnimation {
-                NumberAnimation { target: osdFace; property: "scale"; to: 0; duration: 200; easing.type: Easing.InBack; easing.overshoot: 2 }
-                NumberAnimation { target: osdFace; property: "opacity"; to: 0; duration: 200; easing.type: Easing.InQuad }
-              }
-              ScriptAction { script: { osdFace.springy = false; dial.rotation = 0 } }
-            }
-
-            Rectangle {
-              anchors.fill: parent
-              radius: width / 2
-              color: Color.background
-            }
-
-            // Red flash when the level crosses 100 %.
-            Rectangle {
-              id: flashDisc
-              anchors.fill: parent
-              radius: width / 2
-              color: Color.urgent
-              opacity: 0
-              SequentialAnimation {
-                id: flash
-                NumberAnimation { target: flashDisc; property: "opacity"; to: 0.55; duration: 70 }
-                NumberAnimation { target: flashDisc; property: "opacity"; to: 0; duration: 520; easing.type: Easing.OutCubic }
-              }
-            }
-
-            // A ring that leaves the dial outwards on a step up and falls
-            // inwards on a step down.
-            Rectangle {
-              id: wave
-              anchors.centerIn: parent
-              width: osdFace.width - 8 * root.uiScale
-              height: width
-              radius: width / 2
-              color: "transparent"
-              border.width: 3 * root.uiScale
-              border.color: osdFace.tint
-              opacity: 0
-              visible: osdFace.progress
-              ParallelAnimation {
-                id: ripple
-                NumberAnimation { target: wave; property: "scale"; from: osdFace.dir > 0 ? 0.96 : 1; to: osdFace.dir > 0 ? 1.16 : 0.62; duration: 460; easing.type: Easing.OutCubic }
-                NumberAnimation { target: wave; property: "opacity"; from: 0.85; to: 0; duration: 460; easing.type: Easing.OutQuad }
-              }
-            }
-
-            Item {
-              id: dial
-              anchors.fill: parent
-              visible: osdFace.progress
-
-              Shape {
-                anchors.fill: parent
-                preferredRendererType: Shape.CurveRenderer
-                ShapePath {
-                  strokeColor: Qt.alpha(Color.foreground, 0.12)
-                  strokeWidth: 8 * root.uiScale
-                  fillColor: "transparent"
-                  PathAngleArc {
-                    centerX: osdFace.width / 2; centerY: osdFace.height / 2
-                    radiusX: osdFace.radius; radiusY: radiusX
-                    startAngle: -90; sweepAngle: 360
-                  }
-                }
-                ShapePath {
-                  strokeColor: osdFace.tint
-                  Behavior on strokeColor { ColorAnimation { duration: 220 } }
-                  strokeWidth: 8 * root.uiScale
-                  fillColor: "transparent"
-                  capStyle: ShapePath.FlatCap
-                  PathAngleArc {
-                    centerX: osdFace.width / 2; centerY: osdFace.height / 2
-                    radiusX: osdFace.radius; radiusY: radiusX
-                    startAngle: -90; sweepAngle: 360 * osdFace.shownLevel
-                  }
-                }
-                // The real 100 % when the scale goes past it (volume overdrive).
-                ShapePath {
-                  strokeColor: osdFace.max > 100 ? Color.foreground : "transparent"
-                  strokeWidth: 12 * root.uiScale
-                  fillColor: "transparent"
-                  capStyle: ShapePath.FlatCap
-                  PathAngleArc {
-                    centerX: osdFace.width / 2; centerY: osdFace.height / 2
-                    radiusX: osdFace.radius; radiusY: radiusX
-                    startAngle: -90 + 360 * 100 / osdFace.max - 1; sweepAngle: 2
-                  }
-                }
-              }
-
-              // The glowing head at the end of the arc.
-              Item {
-                id: head
-                visible: osdFace.shownLevel > 0.005
-                x: osdFace.width / 2 + osdFace.radius * Math.cos(osdFace.headAngle) - width / 2
-                y: osdFace.height / 2 + osdFace.radius * Math.sin(osdFace.headAngle) - height / 2
-                width: 30 * root.uiScale; height: width
-                Rectangle {
-                  anchors.centerIn: parent
-                  width: head.width; height: width; radius: width / 2
-                  color: osdFace.tint
-                  opacity: 0.22
-                }
-                Rectangle {
-                  anchors.centerIn: parent
-                  width: 18 * root.uiScale; height: width; radius: width / 2
-                  color: osdFace.tint
-                  opacity: 0.45
-                }
-                Rectangle {
-                  anchors.centerIn: parent
-                  width: 10 * root.uiScale; height: width; radius: width / 2
-                  color: Qt.lighter(osdFace.tint, 1.6)
-                }
-              }
-            }
-
-            Column {
-              anchors.centerIn: parent
-              width: parent.width * 0.7
-              spacing: osdFace.width * 0.02
-              Text {
-                id: osdIcon
-                width: parent.width
-                horizontalAlignment: Text.AlignHCenter
-                textFormat: Text.PlainText
-                text: root.osd.icon || ""
-                color: osdFace.overdriven ? Color.urgent : Color.foreground
-                Behavior on color { ColorAnimation { duration: 220 } }
-                font.family: Style.fontFamily
-                font.pixelSize: osdFace.width * (osdFace.progress ? 0.2 : 0.26)
-                SequentialAnimation {
-                  id: kick
-                  NumberAnimation { target: osdIcon; property: "scale"; to: 1.22; duration: 70; easing.type: Easing.OutQuad }
-                  NumberAnimation { target: osdIcon; property: "scale"; to: 1; duration: 260; easing.type: Easing.OutBack; easing.overshoot: 3 }
-                }
-              }
-              // The readout rolls like a counter: the old value leaves the
-              // way the level went and the new one follows it in.
-              Item {
-                id: readoutBox
-                width: parent.width
-                height: current.implicitHeight
-                clip: true
-                visible: osdFace.readout !== ""
-                NumberAnimation { id: rollAnim; target: osdFace; property: "roll"; from: 0; to: 1; duration: 190; easing.type: Easing.OutCubic }
-                Text {
-                  id: current
-                  width: parent.width
-                  y: (1 - osdFace.roll) * parent.height * osdFace.dir
-                  horizontalAlignment: Text.AlignHCenter
-                  textFormat: Text.PlainText
-                  text: osdFace.readout
-                  color: osdFace.overdriven ? Color.urgent : Color.foreground
-                  Behavior on color { ColorAnimation { duration: 220 } }
-                  font.family: Style.fontFamily
-                  font.bold: true
-                  font.pixelSize: osdFace.width * (osdFace.progress ? 0.17 : 0.09)
-                  wrapMode: Text.Wrap
-                  maximumLineCount: 2
-                  elide: Text.ElideRight
-                }
-                Text {
-                  width: parent.width
-                  y: -osdFace.roll * parent.height * osdFace.dir
-                  visible: osdFace.roll < 1
-                  horizontalAlignment: Text.AlignHCenter
-                  textFormat: Text.PlainText
-                  text: osdFace.previousReadout
-                  color: current.color
-                  opacity: 1 - osdFace.roll
-                  font: current.font
-                  wrapMode: Text.Wrap
-                  maximumLineCount: 2
-                  elide: Text.ElideRight
-                }
-              }
-            }
           }
 
           Item {
@@ -1904,30 +1602,6 @@ Item {
         }
       }
     }
-
-    Item {
-      id: irisMask
-      anchors.fill: parent
-      layer.enabled: true
-      visible: false
-      Rectangle {
-        x: root.cx - iris.radius; y: root.cy - iris.radius
-        width: 2 * iris.radius; height: width
-        radius: width / 2
-        color: "black"
-      }
-    }
-
-    Rectangle {
-      visible: root.veil > 0.02 && root.veil < 0.98
-      x: root.cx - iris.radius; y: root.cy - iris.radius
-      width: 2 * iris.radius; height: width
-      radius: width / 2
-      color: "transparent"
-      border.width: 2
-      border.color: Color.accent
-      opacity: Math.sin(Math.PI * root.veil)
-    }
   }
 
   // The list of maps, from the clock: under the disc (above it in a bottom
@@ -2040,7 +1714,6 @@ Item {
     function zoomIn(): void { root.setZoom(root.cfg.zoom + 1) }
     function zoomOut(): void { root.setZoom(root.cfg.zoom - 1) }
     function refresh(): void { root.fetchRadar(); root.fetchForecast() }
-    // Render the disc to a PNG, for checking the look without a screen grab.
     // Jump to the desk the LEDs are signalling (bound to Super+Caps Lock).
     function focusAlert(): string { return root.focusAlert() ? "ok" : "none" }
     // What the minimap knows about agents and alerts, for diagnosis.
@@ -2049,6 +1722,7 @@ Item {
     function hideNumbers(): void { root.numbersShown = false }
     // Same call as Spaces' IPC, sent by the agent reporters to both.
     function agent(session: string, state: string, pids: string): void { root.applyAgent(session, state, pids) }
+    // Render the disc to a PNG, for checking the look without a screen grab.
     function snapshot(path: string): void { disc.grabToImage(function(r) { r.saveToFile(path) }) }
   }
 }

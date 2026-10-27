@@ -155,12 +155,15 @@ Item {
       color: "transparent"
       border.width: 2 * map.uiScale
       border.color: Color.accent
+      // Only while the weather map is on screen: every map stays loaded.
       SequentialAnimation on scale {
+        running: pulse.visible
         loops: Animation.Infinite
         NumberAnimation { from: 1; to: 2.6; duration: 1600; easing.type: Easing.OutCubic }
         PauseAnimation { duration: 600 }
       }
       SequentialAnimation on opacity {
+        running: pulse.visible
         loops: Animation.Infinite
         NumberAnimation { from: 0.9; to: 0; duration: 1600; easing.type: Easing.OutCubic }
         PauseAnimation { duration: 600 }

@@ -435,7 +435,7 @@ function discLayout(windows, size, fallback) {
     var bottom = clamp((win.at[1] + win.size[1] - box.y0) * sy, 0, size)
     if (right - left < 2 || bottom - top < 2) continue
     out.push({
-      address: win.address, appId: win.appId, title: win.title,
+      address: win.address, appId: win.appId,
       focused: win.focused, floating: win.floating,
       x: left, y: top, w: right - left, h: bottom - top
     })
@@ -744,6 +744,22 @@ function fogOpacity(lastFocused, nowSec, floor) {
   return 1 - (1 - floor) * (idle - 600) / 3000
 }
 
+// The piece of the wallpaper under `rect` (logical px on its screen), as
+// the screen shows it (scaled to cover, centred): the size to decode the
+// image at and the clip, both in device px. Null while the image size is
+// unknown.
+function wallpaperCrop(imageW, imageH, screenW, screenH, dpr, rect) {
+  if (!(imageW > 0 && imageH > 0 && screenW > 0 && screenH > 0 && rect.width > 0 && rect.height > 0)) return null
+  var sw = screenW * dpr, sh = screenH * dpr
+  var s = Math.max(sw / imageW, sh / imageH)
+  var w = Math.round(imageW * s), h = Math.round(imageH * s)
+  var x = Math.round((w - sw) / 2 + rect.x * dpr), y = Math.round((h - sh) / 2 + rect.y * dpr)
+  return {
+    sourceSize: Qt.size(w, h),
+    clip: Qt.rect(x, y, Math.round(rect.width * dpr), Math.round(rect.height * dpr))
+  }
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     normalizeConfig: normalizeConfig,
@@ -798,6 +814,7 @@ if (typeof module !== "undefined") {
     tileOutline: tileOutline,
     durationText: durationText,
     fogOpacity: fogOpacity,
+    wallpaperCrop: wallpaperCrop,
     RADAR_MAX_ZOOM: RADAR_MAX_ZOOM,
     MIN_ZOOM: MIN_ZOOM,
     MAX_ZOOM: MAX_ZOOM
