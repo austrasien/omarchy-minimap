@@ -168,9 +168,9 @@ Item {
 
   // ------------------------------------------------------- rim details
   //
-  // Hovering the rim explains it in the middle circle: the day/night dial
-  // (sunrise, sunset, golden hours) and the desks' arcs through the OSD
-  // face; the battery band through its own face (BatteryFace.qml).
+  // Hovering the rim explains it in the middle circle: the desks' arcs
+  // through the OSD face, the day/night dial and the battery band through
+  // faces of their own (DayFace.qml, BatteryFace.qml).
 
   readonly property var sun: location ? Model.sunTimes(now.getTime(), location.lat, location.lon) : null
   // The golden hours as dial arcs: sunrise until the sun is 6° up, 6° until sunset.
@@ -184,31 +184,6 @@ Item {
   }
 
   function hm(sec) { return Model.clockText(new Date(sec * 1000)) }
-
-  function dialOsd() {
-    var rise = sunrise, set = sunset
-    var day = Model.isDaytime(nowSec, rise, set)
-    // In the day's order: sunrise, the two golden hours, sunset.
-    var golden = sun && sun.goldenEnd && sun.goldenStart
-    var lines = []
-    if (rise) lines.push("lever " + hm(rise))
-    if (golden) lines.push("golden " + hm(rise) + "–" + hm(sun.goldenEnd), "golden " + hm(sun.goldenStart) + "–" + hm(set))
-    if (set) lines.push("coucher " + hm(set))
-    var progress = 0
-    if (rise && set) progress = day ? (nowSec - rise) / (set - rise)
-      : (nowSec >= set ? (nowSec - set) : (nowSec + 86400 - set)) / (86400 - (set - rise))
-    return {
-      iconKey: "dial",
-      icon: String.fromCodePoint(day ? 0xF0599 : 0xF0594),
-      message: rise && set ? Model.durationText(set - rise) : "",
-      detail: lines.join("\n"),
-      hasProgress: rise > 0 && set > 0,
-      value: Math.max(0, Math.min(1, progress)) * 100,
-      maxValue: 100,
-      color: day ? "#f6c344" : "#5b8cff",
-      quiet: true
-    }
-  }
 
   function deskOsd(id) {
     var counts = ({}), order = []
@@ -240,7 +215,7 @@ Item {
     }
   }
 
-  function hoverDial(on) { if (on) holdOsd(dialOsd()); else releaseOsd() }
+  property bool dialHovered: false
   function hoverDesk(id) { if (id) holdOsd(deskOsd(id)); else releaseOsd() }
   property bool batteryHovered: false
 
@@ -1628,6 +1603,17 @@ Item {
             speech: root.micSpeech
           }
 
+          // The dial's details on the middle circle, while hovered.
+          DayFace {
+            readonly property real inset: root.hasWorkspaceMap ? root.bandWidth + root.bandGap : 0
+            minimap: root
+            shown: root.dialHovered && !root.peeking
+            z: 3
+            x: inset; y: inset
+            width: content.width - 2 * inset
+            height: width
+          }
+
           // The battery band's details on the middle circle, while hovered.
           BatteryFace {
             readonly property real inset: root.hasWorkspaceMap ? root.bandWidth + root.bandGap : 0
@@ -1686,7 +1672,7 @@ Item {
           daylight: root.forecast ? Model.daylightArc(root.forecast.sunrise, root.forecast.sunset) : null
           daytime: Model.isDaytime(root.nowSec, root.forecast ? root.forecast.sunrise : 0, root.forecast ? root.forecast.sunset : 0)
           golden: root.goldenArcs
-          onDialHovered: function(on) { root.hoverDial(on) }
+          onDialHovered: function(on) { root.dialHovered = on }
           onBatteryHovered: function(on) { root.batteryHovered = on }
           battery: root.batteryPercent
           batterySeconds: root.batterySeconds

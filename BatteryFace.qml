@@ -131,20 +131,22 @@ Item {
         }
       }
 
-      // The app's name and share along its segment, upright below the
-      // middle, clipped to the segment's length.
+      // The app's name along its segment, with its share when that fits
+      // too, upright below the middle; nothing when even the name does not.
       Text {
+        id: label
         readonly property real mid: (segment.modelData.start + segment.modelData.sweep / 2) * Math.PI / 180
-        readonly property real room: segment.modelData.sweep * Math.PI / 180 * face.ringR - 4 * face.k
+        readonly property real room: segment.modelData.sweep * Math.PI / 180 * face.ringR - 6 * face.k
+        readonly property string name: segment.modelData.app.name
+        readonly property string full: name + " " + Math.round(segment.modelData.app.cpu) + "%"
         readonly property bool below: Math.cos(mid) < 0
-        visible: room > 18 * face.k
-        width: room
+        TextMetrics { id: fullInk; font: label.font; text: label.full }
+        TextMetrics { id: nameInk; font: label.font; text: label.name }
+        visible: nameInk.advanceWidth <= room
         x: face.w / 2 + face.ringR * Math.sin(mid) - width / 2
         y: face.w / 2 - face.ringR * Math.cos(mid) - height / 2
         rotation: mid * 180 / Math.PI + (below ? 180 : 0)
-        horizontalAlignment: Text.AlignHCenter
-        elide: Text.ElideRight
-        text: segment.modelData.app.name + " " + Math.round(segment.modelData.app.cpu) + "%"
+        text: fullInk.advanceWidth <= room ? full : name
         color: "#14151f"
         font.family: Style.fontFamily
         font.pixelSize: Math.round(face.ringWidth * 0.72)
