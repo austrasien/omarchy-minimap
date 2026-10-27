@@ -31,13 +31,14 @@ A round, game-style minimap pinned to a screen corner of the Omarchy shell.
   arc, which closes in the theme accent; the other arcs slide into place.
 - **Rim details on hover**: the rim explains itself in the middle circle,
   over the map without turning it, gone when the pointer leaves.
-  - The day/night dial: the sun's path as an arch over the horizon, the
-    sun where it is now, the golden hours in orange at both ends (sunrise
-    until the sun is 6° up, 6° until sunset, computed for your location),
-    and large: the day's length, sunrise and sunset, and the golden hour
-    under way or next. The golden hours are also drawn warmer on the dial.
+  - The day/night dial: the sun's path as a wide arch from eight o'clock
+    (sunrise) over the top to four o'clock (sunset), the sun where it is
+    now, the golden hours in orange at both ends (sunrise until the sun is
+    6° up, 6° until sunset, computed for your location), and large inside:
+    the day's length, the golden hour under way or next, sunrise and
+    sunset. The golden hours are also drawn warmer on the dial.
   - The battery band: austraz.power's TOP CPU bar bent into a ring (the five
-    busiest apps, a share each, same colours, each named on its arc when the
+    busiest apps, a share each, same colours, each named along its arc when the
     name fits) and, in the middle, the watts
     now and its CHARGE RATE chart for the last 15 minutes (read from the
     history austraz.power keeps), with the level and time left. A click

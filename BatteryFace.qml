@@ -94,6 +94,7 @@ Item {
 
   // The apps' ring: a share of the five each, from noon, clockwise.
   readonly property real ringWidth: 0.09 * w
+  readonly property font labelFont: Qt.font({ family: Style.fontFamily, pixelSize: Math.round(ringWidth * 0.72), bold: true })
   readonly property real ringR: w / 2 - 3 * k - ringWidth / 2
   readonly property var segments: {
     var total = 0
@@ -131,26 +132,37 @@ Item {
         }
       }
 
-      // The app's name along its segment, with its share when that fits
-      // too, upright below the middle; nothing when even the name does not.
-      Text {
+      // The app's name curved along its segment, with its share when that
+      // fits too; upright below the middle; nothing when even the name
+      // does not fit.
+      Item {
         id: label
+        anchors.fill: parent
         readonly property real mid: (segment.modelData.start + segment.modelData.sweep / 2) * Math.PI / 180
         readonly property real room: segment.modelData.sweep * Math.PI / 180 * face.ringR - 6 * face.k
         readonly property string name: segment.modelData.app.name
         readonly property string full: name + " " + Math.round(segment.modelData.app.cpu) + "%"
+        readonly property string text: ink.advanceWidth(full) <= room ? full : ink.advanceWidth(name) <= room ? name : ""
         readonly property bool below: Math.cos(mid) < 0
-        TextMetrics { id: fullInk; font: label.font; text: label.full }
-        TextMetrics { id: nameInk; font: label.font; text: label.name }
-        visible: nameInk.advanceWidth <= room
-        x: face.w / 2 + face.ringR * Math.sin(mid) - width / 2
-        y: face.w / 2 - face.ringR * Math.cos(mid) - height / 2
-        rotation: mid * 180 / Math.PI + (below ? 180 : 0)
-        text: fullInk.advanceWidth <= room ? full : name
-        color: "#14151f"
-        font.family: Style.fontFamily
-        font.pixelSize: Math.round(face.ringWidth * 0.72)
-        font.bold: true
+        readonly property real total: ink.advanceWidth(text)
+        FontMetrics { id: ink; font: face.labelFont }
+
+        Repeater {
+          model: label.text.length
+          delegate: Text {
+            required property int index
+            readonly property string ch: label.text.charAt(index)
+            readonly property real before: ink.advanceWidth(label.text.slice(0, index))
+            readonly property real off: before + ink.advanceWidth(ch) / 2 - label.total / 2
+            readonly property real a: label.mid + (label.below ? -off : off) / face.ringR
+            x: face.w / 2 + face.ringR * Math.sin(a) - width / 2
+            y: face.w / 2 - face.ringR * Math.cos(a) - height / 2
+            rotation: a * 180 / Math.PI + (label.below ? 180 : 0)
+            text: ch
+            color: "#14151f"
+            font: face.labelFont
+          }
+        }
       }
     }
   }

@@ -1217,15 +1217,19 @@ Item {
 
   // The window the minimap is cut out of: the one under the disc centre on
   // the current workspace, the focused one first.
+  // While the scratchpad is shown its windows lie over the desk's: they
+  // come first.
   readonly property var underWindow: {
     var o = windowOrigin
     var px = o.mx + o.x + cx, py = o.my + o.y + cy
     var best = null
     for (var i = 0; i < allWindows.length; i++) {
       var w = allWindows[i]
-      if (w.workspace !== currentWorkspace || !w.at || !w.size) continue
+      var over = scratchpadShown && w.scratchpad
+      if ((w.workspace !== currentWorkspace && !over) || !w.at || !w.size) continue
       if (px < w.at[0] || py < w.at[1] || px > w.at[0] + w.size[0] || py > w.at[1] + w.size[1]) continue
-      if (!best || w.focused) best = w
+      var bestOver = best && scratchpadShown && best.scratchpad
+      if (!best || (over && !bestOver) || (over === bestOver && w.focused)) best = w
     }
     return best
   }
