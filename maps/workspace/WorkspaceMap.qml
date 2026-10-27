@@ -20,6 +20,28 @@ Item {
   property int bandGap: 3
   property real uiScale: 1           // the fixed sizes below are for a 210 px disc
   readonly property real numberMargin: 3 * uiScale   // between a desk number and the band's edges
+
+  // One size for all the desk numbers: the biggest at which each of them,
+  // measured at 100 px, keeps `numberMargin` clear of both edges of the
+  // band and of its arc's ends, at its angle.
+  TextMetrics { id: oneDigit; font.family: Style.fontFamily; font.pixelSize: 100; font.bold: true; text: "8" }
+  TextMetrics { id: twoDigits; font.family: Style.fontFamily; font.pixelSize: 100; font.bold: true; text: "88" }
+  readonly property int numberSize: {
+    var best = Infinity
+    var dist = map.width / 2 - map.bandWidth / 2
+    for (var i = 0; i < map.arcs.length; i++) {
+      var arc = map.arcs[i]
+      if (arc.sweep <= 14) continue
+      var ink = (arc.id >= 10 ? twoDigits : oneDigit).tightBoundingRect
+      var a = arc.mid * Math.PI / 180
+      var across = (ink.width * Math.abs(Math.sin(a)) + ink.height * Math.abs(Math.cos(a))) / 100
+      var along = (ink.width * Math.abs(Math.cos(a)) + ink.height * Math.abs(Math.sin(a))) / 100
+      var arcLength = arc.sweep * Math.PI / 180 * (dist - map.bandWidth / 2)
+      best = Math.min(best, (map.bandWidth - 2 * map.numberMargin) / Math.max(0.01, across),
+        (arcLength - 2 * map.numberMargin) / Math.max(0.01, along))
+    }
+    return best === Infinity ? Math.round(11 * map.uiScale) : Math.max(6, Math.floor(best))
+  }
   property var markers: ({})         // address → working | waiting | done
   property var lastFocus: ({})       // address → epoch seconds
   property var deskVisits: ({})      // workspace id → epoch seconds it was last left
@@ -234,9 +256,8 @@ Item {
         ? Color.background : Color.foreground
       anchors.fill: parent
 
-      // The number as big as the band allows: its glyphs, measured at
-      // 100 px, keep `numberMargin` clear of both edges of the band and of
-      // the arc's ends, whatever the angle.
+      // Every number at the same size, `map.numberSize`; its ink is
+      // centred on the band.
       TextMetrics {
         id: numberRef
         font.family: Style.fontFamily
@@ -248,11 +269,6 @@ Item {
         id: number
         readonly property real a: arcLabels.arc ? arcLabels.arc.mid * Math.PI / 180 : 0
         readonly property rect ink: numberRef.tightBoundingRect
-        readonly property real across: (ink.width * Math.abs(Math.sin(a)) + ink.height * Math.abs(Math.cos(a))) / 100
-        readonly property real along: (ink.width * Math.abs(Math.cos(a)) + ink.height * Math.abs(Math.sin(a))) / 100
-        readonly property real arcLength: arcLabels.arc ? arcLabels.arc.sweep * Math.PI / 180 * (arcLabels.dist - map.bandWidth / 2) : 0
-        readonly property real room: Math.min((map.bandWidth - 2 * map.numberMargin) / Math.max(0.01, across),
-          (arcLength - 2 * map.numberMargin) / Math.max(0.01, along))
         readonly property real k: font.pixelSize / 100
         x: map.width / 2 + arcLabels.dist * Math.sin(a) - (ink.x + ink.width / 2) * k
         y: map.height / 2 - arcLabels.dist * Math.cos(a) - baselineOffset - (ink.y + ink.height / 2) * k
@@ -263,7 +279,7 @@ Item {
         text: arcLabels.modelData < 0 ? "0" : String(arcLabels.modelData)
         color: arcLabels.ink
         font.family: Style.fontFamily
-        font.pixelSize: Math.max(6, Math.floor(room))
+        font.pixelSize: map.numberSize
         font.bold: true
       }
 
