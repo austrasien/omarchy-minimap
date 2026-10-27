@@ -256,7 +256,7 @@ Item {
 
   Column {
     anchors.centerIn: parent
-    width: parent.width * 0.7
+    width: parent.width * (osdFace.detailed ? 0.76 : 0.7)
     spacing: osdFace.width * 0.02
     Text {
       id: osdIcon
@@ -322,9 +322,10 @@ Item {
       text: minimap.osd.detail || ""
       color: Qt.alpha(Color.foreground, 0.7)
       font.family: Style.fontFamily
-      font.pixelSize: Math.round(osdFace.width * 0.065)
+      // Smaller when there are four lines.
+      font.pixelSize: Math.round(osdFace.width * (String(minimap.osd.detail || "").split("\n").length > 3 ? 0.058 : 0.065))
       wrapMode: Text.Wrap
-      maximumLineCount: 3
+      maximumLineCount: 4
       elide: Text.ElideRight
       lineHeight: 0.95
     }

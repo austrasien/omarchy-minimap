@@ -6,7 +6,10 @@ import "Model.js" as Model
 // The ring around the map: a 24 h dial (noon at the top, midnight at the
 // bottom). By day the arc from the real sunrise to sunset is yellow with the
 // sun on the current time; by night the arc from sunset to sunrise is blue
-// with the moon in its real phase. From the map outwards, none overlapping:
+// with the moon in its real phase; the golden hours (sunrise until the sun
+// is 6° up, and 6° until sunset) warmer on it. Hovering the dial or the
+// battery band tells the minimap (dialHovered, batteryHovered), which
+// shows their details in the middle circle. From the map outwards, none overlapping:
 // the map's edge, the battery band, the day/night dial. Battery: on
 // battery a stripe from now to the estimated empty time; charging an orange
 // stripe to full, then a green one for how long that charge would last;
@@ -17,12 +20,15 @@ Item {
   property real ringWidth: 22         // dial + battery band, see below
   property bool cardinals: true      // pilot's bezel, else plain ticks at the quarters too
   signal batteryClicked()
+  signal batteryHovered(bool on)
+  signal dialHovered(bool on)
   readonly property real unit: ringWidth / 22   // the sizes below are for a 22 px ring
   readonly property real dialWidth: 8 * unit
   readonly property real batteryWidth: 8 * unit   // as wide as the dial
   readonly property real bandGap: 3 * unit        // clear space between the bands
   property var now: new Date()
   property var daylight: null        // {start, end} dial angles, or null
+  property var golden: []            // [{start, end}] dial angles, the golden hours
   property bool daytime: true
   property int battery: -1           // percent, -1 = no battery
   property string batteryMode: ""    // discharging | charging | estimate
@@ -40,6 +46,7 @@ Item {
   readonly property color dayColor: Qt.alpha(sunColor, 0.55)
   readonly property color nightColor: Qt.alpha("#5b8cff", 0.55)
   readonly property color restColor: Qt.alpha(Color.foreground, 0.08)
+  readonly property color goldenColor: Qt.alpha("#ff9f43", 0.8)
   readonly property var moon: Model.moonOutline(Model.moonPhase(now.getTime() / 1000), (dialWidth + 6 * unit) / 2)
   // On battery the stripe runs from green (100 %) to red (0 %) and blinks
   // under 10 %; charging it is orange; the runtime a charge would give is green.
@@ -92,6 +99,32 @@ Item {
         startAngle: !rim.daylight ? 0 : rim.shapeAngle(rim.daytime ? rim.daylight.start : rim.daylight.end)
         sweepAngle: !rim.daylight ? 0 : (rim.daytime ? rim.sweep(rim.daylight.start, rim.daylight.end)
           : rim.sweep(rim.daylight.end, rim.daylight.start))
+      }
+    }
+
+    // The golden hours, warmer over the daylight arc.
+    ShapePath {
+      strokeColor: rim.golden.length > 0 ? rim.goldenColor : "transparent"
+      strokeWidth: rim.dialWidth
+      fillColor: "transparent"
+      capStyle: ShapePath.FlatCap
+      PathAngleArc {
+        centerX: rim.r; centerY: rim.r
+        radiusX: rim.dialR; radiusY: rim.dialR
+        startAngle: rim.golden.length > 0 ? rim.shapeAngle(rim.golden[0].start) : 0
+        sweepAngle: rim.golden.length > 0 ? rim.sweep(rim.golden[0].start, rim.golden[0].end) : 0
+      }
+    }
+    ShapePath {
+      strokeColor: rim.golden.length > 1 ? rim.goldenColor : "transparent"
+      strokeWidth: rim.dialWidth
+      fillColor: "transparent"
+      capStyle: ShapePath.FlatCap
+      PathAngleArc {
+        centerX: rim.r; centerY: rim.r
+        radiusX: rim.dialR; radiusY: rim.dialR
+        startAngle: rim.golden.length > 1 ? rim.shapeAngle(rim.golden[1].start) : 0
+        sweepAngle: rim.golden.length > 1 ? rim.sweep(rim.golden[1].start, rim.golden[1].end) : 0
       }
     }
 
@@ -247,5 +280,20 @@ Item {
       }
     }
     onClicked: rim.batteryClicked()
+    onContainsMouseChanged: rim.batteryHovered(containsMouse)
+  }
+
+  // Hovering the day/night dial (the sun or moon on it included).
+  MouseArea {
+    anchors.fill: parent
+    hoverEnabled: true
+    acceptedButtons: Qt.NoButton
+    containmentMask: QtObject {
+      function contains(p: point): bool {
+        var d = Math.hypot(p.x - rim.r, p.y - rim.r)
+        return Math.abs(d - rim.dialR) <= rim.dialWidth / 2 + rim.bandGap / 2
+      }
+    }
+    onContainsMouseChanged: rim.dialHovered(containsMouse)
   }
 }

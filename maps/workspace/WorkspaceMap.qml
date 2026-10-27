@@ -52,6 +52,7 @@ Item {
 
   signal focusWindow(string address)
   signal focusWorkspace(int id)
+  signal hoverWorkspace(int id)      // the arc under the pointer, 0 when none
   signal moveWindow(string address, int workspace)
 
   // Dragging a window: its icon follows the pointer, the arc under it
@@ -156,6 +157,7 @@ Item {
     }
     cursorShape: arc ? Qt.PointingHandCursor : Qt.ArrowCursor
     onClicked: if (arc) map.focusWorkspace(arc.id)
+    onArcChanged: map.hoverWorkspace(arc ? arc.id : 0)
   }
 
   // The repeaters are keyed by workspace id so the switch animation only

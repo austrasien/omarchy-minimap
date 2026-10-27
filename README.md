@@ -29,6 +29,19 @@ A round, game-style minimap pinned to a screen corner of the Omarchy shell.
   that opens for it on the band (in the theme accent, fading to its own
   colour as the switch ends), while the one you go to grows out of its
   arc, which closes in the theme accent; the other arcs slide into place.
+- **Rim details on hover**: the rim explains itself in the middle circle,
+  over the map without turning it, gone when the pointer leaves.
+  - The day/night dial: day (or night) length, sunrise, the two golden
+    hours and sunset; the golden hours (sunrise until the sun is 6° up, 6°
+    until sunset, computed for your location) are also drawn warmer on the
+    dial.
+  - The battery band: austraz.power's TOP CPU bar bent into a ring (the five
+    busiest apps, a share each, same colours) and, in the middle, the watts
+    now and its CHARGE RATE chart for the last 15 minutes (read from the
+    history austraz.power keeps), with the level and time left. A click
+    still opens austraz.power.
+  - A desk's arc: its number, how many windows, its apps (desktop entry
+    names) and when you last went there.
 - **System OSDs**: volume, brightness and microphone OSDs show in the
   middle circle instead of the shell's card, when an OSD that asks first is
   installed (austraz.audio does: `osd` answers "ok" only while the disc is

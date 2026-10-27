@@ -166,6 +166,84 @@ Item {
     forecastProc.running = true
   }
 
+  // ------------------------------------------------------- rim details
+  //
+  // Hovering the rim explains it in the middle circle: the day/night dial
+  // (sunrise, sunset, golden hours) and the desks' arcs through the OSD
+  // face; the battery band through its own face (BatteryFace.qml).
+
+  readonly property var sun: location ? Model.sunTimes(now.getTime(), location.lat, location.lon) : null
+  // The golden hours as dial arcs: sunrise until the sun is 6° up, 6° until sunset.
+  // Bounded by the forecast's sunrise and sunset when there is one, so they
+  // meet the daylight arc and the times shown.
+  readonly property real sunrise: forecast && forecast.sunrise ? forecast.sunrise : (sun ? sun.sunrise : 0)
+  readonly property real sunset: forecast && forecast.sunset ? forecast.sunset : (sun ? sun.sunset : 0)
+  readonly property var goldenArcs: {
+    if (!sun || !sun.goldenEnd || !sun.goldenStart || !sunrise || !sunset) return []
+    return [Model.daylightArc(sunrise, sun.goldenEnd), Model.daylightArc(sun.goldenStart, sunset)]
+  }
+
+  function hm(sec) { return Model.clockText(new Date(sec * 1000)) }
+
+  function dialOsd() {
+    var rise = sunrise, set = sunset
+    var day = Model.isDaytime(nowSec, rise, set)
+    // In the day's order: sunrise, the two golden hours, sunset.
+    var golden = sun && sun.goldenEnd && sun.goldenStart
+    var lines = []
+    if (rise) lines.push("lever " + hm(rise))
+    if (golden) lines.push("golden " + hm(rise) + "–" + hm(sun.goldenEnd), "golden " + hm(sun.goldenStart) + "–" + hm(set))
+    if (set) lines.push("coucher " + hm(set))
+    var progress = 0
+    if (rise && set) progress = day ? (nowSec - rise) / (set - rise)
+      : (nowSec >= set ? (nowSec - set) : (nowSec + 86400 - set)) / (86400 - (set - rise))
+    return {
+      iconKey: "dial",
+      icon: String.fromCodePoint(day ? 0xF0599 : 0xF0594),
+      message: rise && set ? Model.durationText(set - rise) : "",
+      detail: lines.join("\n"),
+      hasProgress: rise > 0 && set > 0,
+      value: Math.max(0, Math.min(1, progress)) * 100,
+      maxValue: 100,
+      color: day ? "#f6c344" : "#5b8cff",
+      quiet: true
+    }
+  }
+
+  function deskOsd(id) {
+    var counts = ({}), order = []
+    for (var i = 0; i < allWindows.length; i++) {
+      var w = allWindows[i]
+      if (id < 0 ? !w.scratchpad : w.workspace !== id) continue
+      var entry = w.appId ? desktopEntryFor(w.appId) : null
+      var name = entry && entry.name ? String(entry.name) : (w.appId.split(".").pop() || "?")
+      if (!counts[name]) { counts[name] = 0; order.push(name) }
+      counts[name]++
+    }
+    var lines = []
+    // Two app lines at most (the detail holds four).
+    for (var j = 0; j < order.length && j < 2; j++)
+      lines.push(order[j] + (counts[order[j]] > 1 ? " ×" + counts[order[j]] : ""))
+    if (order.length > 2) lines[1] = "+" + (order.length - 1) + " autres"
+    var seen = deskVisits[id]
+    lines.push(!seen ? "pas encore vu" : nowSec - seen < 60 ? "vu à l'instant" : "vu il y a " + Model.durationText(nowSec - seen))
+    var n = 0
+    for (var k in counts) n += counts[k]
+    lines.unshift(n + (n > 1 ? " fenêtres" : " fenêtre"))
+    return {
+      iconKey: "desk",
+      icon: String.fromCodePoint(id < 0 ? 0xF0E1E : 0xF0379),
+      message: id < 0 ? "0" : String(id),
+      detail: lines.join("\n"),
+      hasProgress: false,
+      quiet: true
+    }
+  }
+
+  function hoverDial(on) { if (on) holdOsd(dialOsd()); else releaseOsd() }
+  function hoverDesk(id) { if (id) holdOsd(deskOsd(id)); else releaseOsd() }
+  property bool batteryHovered: false
+
   // ------------------------------------------------------------ tile cache
 
   readonly property string cacheDir: (Quickshell.env("XDG_CACHE_HOME") || home + "/.cache") + "/austraz-minimap"
@@ -1550,6 +1628,17 @@ Item {
             speech: root.micSpeech
           }
 
+          // The battery band's details on the middle circle, while hovered.
+          BatteryFace {
+            readonly property real inset: root.hasWorkspaceMap ? root.bandWidth + root.bandGap : 0
+            minimap: root
+            shown: root.batteryHovered && !root.peeking
+            z: 3
+            x: inset; y: inset
+            width: content.width - 2 * inset
+            height: width
+          }
+
           // A system OSD on the middle circle (OsdFace.qml).
           OsdFace {
             readonly property real inset: root.hasWorkspaceMap ? root.bandWidth + root.bandGap : 0
@@ -1596,6 +1685,9 @@ Item {
           now: root.now
           daylight: root.forecast ? Model.daylightArc(root.forecast.sunrise, root.forecast.sunset) : null
           daytime: Model.isDaytime(root.nowSec, root.forecast ? root.forecast.sunrise : 0, root.forecast ? root.forecast.sunset : 0)
+          golden: root.goldenArcs
+          onDialHovered: function(on) { root.hoverDial(on) }
+          onBatteryHovered: function(on) { root.batteryHovered = on }
           battery: root.batteryPercent
           batterySeconds: root.batterySeconds
           batteryAfterSeconds: root.batteryAfterSeconds

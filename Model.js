@@ -449,6 +449,44 @@ function discLayout(windows, size, fallback) {
 
 // Occupied workspaces as equal arcs around the disc, in id order,
 // clockwise, the first one centred at the top. Angles in dial degrees.
+// ------------------------------------------------------------------ sun
+//
+// Sunrise, sunset and the golden hours for a day and a place, after
+// SunCalc (Vladimir Agafonkin, BSD): the golden hour runs from sunrise
+// until the sun is 6° up, and from 6° until sunset. Epoch seconds, 0 when
+// the sun never crosses that height (polar day or night).
+var SUN_RAD = Math.PI / 180
+var SUN_J1970 = 2440588
+var SUN_J2000 = 2451545
+var SUN_J0 = 0.0009
+var SUN_TILT = SUN_RAD * 23.4397
+
+function sunTimes(ms, lat, lon) {
+  var lw = SUN_RAD * -lon, phi = SUN_RAD * lat
+  var d = ms / 86400000 - 0.5 + SUN_J1970 - SUN_J2000
+  var n = Math.round(d - SUN_J0 - lw / (2 * Math.PI))
+  var ds = SUN_J0 + lw / (2 * Math.PI) + n
+  var M = SUN_RAD * (357.5291 + 0.98560028 * ds)
+  var C = SUN_RAD * (1.9148 * Math.sin(M) + 0.02 * Math.sin(2 * M) + 0.0003 * Math.sin(3 * M))
+  var L = M + C + SUN_RAD * 102.9372 + Math.PI
+  var dec = Math.asin(Math.sin(SUN_TILT) * Math.sin(L))
+  var noon = SUN_J2000 + ds + 0.0053 * Math.sin(M) - 0.0069 * Math.sin(2 * L)
+  function setting(h) {
+    var cosH = (Math.sin(h * SUN_RAD) - Math.sin(phi) * Math.sin(dec)) / (Math.cos(phi) * Math.cos(dec))
+    if (cosH < -1 || cosH > 1) return null
+    var a = SUN_J0 + (Math.acos(cosH) + lw) / (2 * Math.PI) + n
+    return SUN_J2000 + a + 0.0053 * Math.sin(M) - 0.0069 * Math.sin(2 * L)
+  }
+  function epoch(j) { return j === null ? 0 : (j + 0.5 - SUN_J1970) * 86400 }
+  var set = setting(-0.833), golden = setting(6)
+  return {
+    sunrise: set === null ? 0 : epoch(noon - (set - noon)),
+    sunset: epoch(set),
+    goldenEnd: golden === null ? 0 : epoch(noon - (golden - noon)),
+    goldenStart: epoch(golden)
+  }
+}
+
 // Order of the desks around the disc: the scratchpad (negative id, it
 // reads "0") first, then the numbered desks in order.
 function deskOrder(a, b) {
@@ -826,6 +864,7 @@ if (typeof module !== "undefined") {
     fogOpacity: fogOpacity,
     wallpaperCrop: wallpaperCrop,
     deskOrder: deskOrder,
+    sunTimes: sunTimes,
     workspaceArcs: workspaceArcs,
     discLayout: discLayout,
     dialAngle: dialAngle,

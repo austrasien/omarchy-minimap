@@ -82,3 +82,17 @@ test("wallpaperCrop: the corner as the screen shows it", () => {
   assert.deepEqual(c.clip, { x: 2807, y: 0, width: 340, height: 340 })   // 266.5 + 2540, rounded
   assert.equal(Model.wallpaperCrop(0, 0, 2304, 1536, 1, { x: 0, y: 0, width: 10, height: 10 }), null)
 })
+
+test("sunTimes: Paris on 27 Oct 2026 (CET)", () => {
+  const t = Model.sunTimes(Date.UTC(2026, 9, 27, 11), 48.8566, 2.3522)
+  const hm = s => new Date(s * 1000).toISOString().slice(11, 16)   // UTC
+  // Open-Meteo for that day: sunrise 06:29 UTC, sunset 16:38 UTC.
+  const near = (s, h, m) => Math.abs(s - Date.UTC(2026, 9, 27, h, m) / 1000) < 240
+  assert.ok(near(t.sunrise, 6, 29), "sunrise " + hm(t.sunrise))
+  assert.ok(near(t.sunset, 16, 38), "sunset " + hm(t.sunset))
+  assert.ok(t.goldenEnd > t.sunrise && t.goldenEnd - t.sunrise < 5400)
+  assert.ok(t.goldenStart < t.sunset && t.sunset - t.goldenStart < 5400)
+  const polar = Model.sunTimes(Date.UTC(2026, 11, 21, 12), 80, 0)   // polar night
+  assert.equal(polar.sunrise, 0)
+  assert.equal(polar.sunset, 0)
+})
