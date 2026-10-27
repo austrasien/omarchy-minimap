@@ -140,7 +140,15 @@ Item {
 
   Shape {
     id: noon
-    visible: rim.cardinals
+    // Out of the way while the sun (or the moon) passes over it.
+    readonly property bool covered: {
+      var nx = Math.max(x, Math.min(body.cx, x + width))
+      var ny = Math.max(y, Math.min(body.cy, y + height))
+      return Math.hypot(body.cx - nx, body.cy - ny) < body.br
+    }
+    visible: rim.cardinals && opacity > 0
+    opacity: covered ? 0 : 1
+    Behavior on opacity { NumberAnimation { duration: 300 } }
     // From just past the outer edge down to the middle of the battery band.
     readonly property real tipOut: rim.cardinalOut
     readonly property real h: rim.dialWidth + rim.bandGap + rim.batteryWidth / 2 + tipOut
@@ -187,6 +195,8 @@ Item {
     id: body
     readonly property real a: rim.timeAngle * Math.PI / 180
     readonly property real br: width / 2
+    readonly property real cx: x + br
+    readonly property real cy: y + br
     width: rim.dialWidth + 6 * rim.unit
     height: width
     x: rim.r + rim.dialR * Math.sin(a) - width / 2
