@@ -123,7 +123,7 @@ Column {
   Setting {
     label: "Taille"
     value: settings.cfg.size
-    minimum: 120
+    minimum: 300
     maximum: 480
     format: function(v) { return Math.round(v / 10) * 10 }
     onReleased: function(v) { settings.save({ size: Math.round(v / 10) * 10 }) }

@@ -319,7 +319,8 @@ Item {
   }
 
   readonly property real terrainSize: cfg.size - 2 * rimWidth - 2 * (bandWidth + bandGap)
-  // Everything drawn on the disc grows with it; 210 px is the default size.
+  // Everything drawn on the disc grows with it; the fixed sizes in the code
+  // are for a 210 px disc.
   readonly property real uiScale: cfg.size / 210
   readonly property int bandWidth: Math.round(18 * uiScale)
   readonly property int bandGap: Math.round(3 * uiScale)

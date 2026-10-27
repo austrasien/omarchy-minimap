@@ -242,7 +242,7 @@ and IPC write back to it.
 ```json
 {
   "corner": "bottom-right",
-  "size": 210,
+  "size": 300,
   "margin": -1,
   "map": "weather",
   "zoom": 7,

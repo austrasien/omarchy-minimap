@@ -28,7 +28,9 @@ function normalizeConfig(raw) {
   return {
     corner: corner,
     map: map,
-    size: isNaN(size) ? 210 : clamp(size, 120, 480),
+    // Under 300 px the middle circle is too small to read once the rim
+    // bands take their room.
+    size: isNaN(size) ? 300 : clamp(size, 300, 480),
     // -1 = automatic: Hyprland's gaps_out, like a window's distance to the edge.
     margin: isNaN(margin) ? -1 : clamp(margin, 0, 200),
     cutout: c.cutout !== false,
