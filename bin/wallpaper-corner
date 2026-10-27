@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# wallpaper-corner <image> <scaled-w> <scaled-h> <x> <y> <w> <h>
+# Prints a PNG of the piece of <image> the shell shows: scaled to
+# <scaled-w>x<scaled-h>, then cut at <x>,<y> to <w>x<h> (device pixels). Cut
+# once with ImageMagick and kept in ~/.cache, so the shell never decodes the
+# full wallpaper (an 8K PNG costs seconds of CPU) and a restart loads a few
+# kilobytes. Keyed by the image, its mtime and the geometry; the last few
+# are kept.
+set -euo pipefail
+
+src=$1
+shift
+[[ -f $src ]] || exit 1
+dir="${XDG_CACHE_HOME:-$HOME/.cache}/austraz-minimap/wallpaper"
+mkdir -p "$dir"
+key=$(printf '%s|%s|%s' "$src" "$(stat -c %Y "$src")" "$*" | sha1sum | cut -c1-16)
+out="$dir/$key.png"
+if [[ ! -f $out ]]; then
+  # Scale about the origin and render only the viewport: the full-size
+  # resize of an 8K image would cost seconds of CPU.
+  scale=$(magick identify -ping -format '%w' "$src[0]" | awk -v w="$1" '{ printf "%.10f", w / $1 }')
+  magick "$src[0]" -virtual-pixel edge -define distort:viewport="${5}x${6}+${3}+${4}" \
+    -distort SRT "0,0 $scale 0 0,0" +repage "$out.tmp.png"
+  mv "$out.tmp.png" "$out"
+  ls -t "$dir"/*.png | tail -n +9 | xargs -r rm -f
+fi
+echo "$out"

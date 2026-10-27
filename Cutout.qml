@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Effects
 import QtQuick.Shapes
+import Quickshell.Io
 import qs.Commons
 import "Model.js" as Model
 
@@ -23,20 +24,35 @@ Item {
       maskSpreadAtMin: 1.0
     }
 
-    // Only the part under the window is decoded (sourceClipRect), not the
-    // whole screen; the full screen only when the image size is unknown.
+    // Only the piece under the window, cut once by bin/wallpaper-corner and
+    // cached on disk: the shell never decodes the full wallpaper.
+    readonly property var crop: Model.wallpaperCrop(minimap.wallpaperSize.width, minimap.wallpaperSize.height,
+      minimap.windowOrigin.w, minimap.windowOrigin.h, minimap.targetScreen ? minimap.targetScreen.devicePixelRatio : 1,
+      Qt.rect(minimap.windowOrigin.x, minimap.windowOrigin.y, view.width, view.height))
+    readonly property string cropKey: crop ? [minimap.wallpaper, crop.sourceSize.width, crop.sourceSize.height,
+      crop.clip.x, crop.clip.y, crop.clip.width, crop.clip.height].join(" ") : ""
+    property string piece: ""
+    onCropKeyChanged: cut.start()
+
+    Process {
+      id: cut
+      property bool again: false
+      function start() {
+        var c = cutout.crop
+        if (!c) return
+        if (running) { again = true; return }
+        command = [Qt.resolvedUrl("bin/wallpaper-corner").toString().replace(/^[a-z]+:\/\//, ""),
+          String(minimap.wallpaper).replace(/^file:\/\//, ""),
+          c.sourceSize.width, c.sourceSize.height, c.clip.x, c.clip.y, c.clip.width, c.clip.height].map(String)
+        running = true
+      }
+      stdout: StdioCollector { onStreamFinished: { var p = text.trim(); if (p) cutout.piece = "file://" + p } }
+      onExited: if (again) { again = false; start() }
+    }
+
     Image {
-      readonly property var crop: Model.wallpaperCrop(minimap.wallpaperSize.width, minimap.wallpaperSize.height,
-        minimap.windowOrigin.w, minimap.windowOrigin.h, minimap.targetScreen ? minimap.targetScreen.devicePixelRatio : 1,
-        Qt.rect(minimap.windowOrigin.x, minimap.windowOrigin.y, view.width, view.height))
-      x: crop ? 0 : -minimap.windowOrigin.x
-      y: crop ? 0 : -minimap.windowOrigin.y
-      width: crop ? view.width : minimap.windowOrigin.w
-      height: crop ? view.height : minimap.windowOrigin.h
-      source: minimap.wallpaper
-      fillMode: crop ? Image.Stretch : Image.PreserveAspectCrop
-      sourceSize: crop ? crop.sourceSize : Qt.size(minimap.windowOrigin.w * (minimap.targetScreen ? minimap.targetScreen.devicePixelRatio : 1), 0)
-      sourceClipRect: crop ? crop.clip : Qt.rect(0, 0, 0, 0)
+      anchors.fill: parent
+      source: cutout.piece
       asynchronous: true
       cache: false
       smooth: true
