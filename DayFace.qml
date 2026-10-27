@@ -95,7 +95,7 @@ Item {
   Text {
     visible: face.known
     anchors.horizontalCenter: parent.horizontalCenter
-    y: face.w * 0.4 - height / 2
+    y: face.w * 0.36 - height / 2
     text: Model.durationText(face.set - face.rise)
     color: Color.foreground
     font.family: Style.fontFamily
@@ -128,8 +128,10 @@ Item {
     }
     visible: window !== null
     anchors.horizontalCenter: parent.horizontalCenter
-    y: face.w * 0.56 - height / 2
-    text: window ? "golden " + face.minimap.hm(window[0]) + "–" + face.minimap.hm(window[1]) : ""
+    y: face.w * 0.57 - height / 2
+    horizontalAlignment: Text.AlignHCenter
+    lineHeight: 0.95
+    text: window ? "golden hour\n" + face.minimap.hm(window[0]) + "–" + face.minimap.hm(window[1]) : ""
     color: face.goldenColor
     font.family: Style.fontFamily
     font.pixelSize: Math.round(face.w * 0.068)
