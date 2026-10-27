@@ -75,7 +75,7 @@ Also taken over from Spaces:
   waiting first, smallest number first, the scratchpad last.
 - **Held Super** (`showNumbers` / `hideNumbers`): the current workspace's
   number over the disc.
-- **Scratchpad**: an arc reading "0" while it holds windows; click toggles
+- **Scratchpad**: the first arc, reading "0", while it holds windows; click toggles
   it, and its agents count as seen while it is shown.
 
 The minimap does not sit on the window under it: a ring as wide as
