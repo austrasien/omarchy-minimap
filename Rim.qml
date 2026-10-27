@@ -16,6 +16,7 @@ Item {
 
   property real ringWidth: 22         // dial + battery band, see below
   property bool cardinals: true      // pilot's bezel, else plain ticks at the quarters too
+  signal batteryClicked()
   readonly property real unit: ringWidth / 22   // the sizes below are for a 22 px ring
   readonly property real dialWidth: 8 * unit
   readonly property real batteryWidth: 8 * unit   // as wide as the dial
@@ -219,5 +220,20 @@ Item {
         PathPolyline { path: rim.moon.map(function(p) { return Qt.point(p.x, p.y) }) }
       }
     }
+  }
+
+  // A click on the battery band (gaps around it included) opens the
+  // battery panel.
+  MouseArea {
+    anchors.fill: parent
+    enabled: rim.battery >= 0
+    cursorShape: Qt.PointingHandCursor
+    containmentMask: QtObject {
+      function contains(p: point): bool {
+        var d = Math.hypot(p.x - rim.r, p.y - rim.r)
+        return Math.abs(d - rim.batteryR) <= rim.batteryWidth / 2 + rim.bandGap / 2
+      }
+    }
+    onClicked: rim.batteryClicked()
   }
 }

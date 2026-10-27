@@ -12,7 +12,14 @@ Column {
   required property var cfg
   signal save(var patch)
 
-  readonly property int labelWidth: 108
+  // Wide enough for the longest label.
+  readonly property int labelWidth: Math.max(108, Math.ceil(longestLabel.advanceWidth) + 12)
+  TextMetrics {
+    id: longestLabel
+    font.family: Style.font.family
+    font.pixelSize: Style.font.body
+    text: "Points cardinaux"
+  }
   readonly property int controlWidth: 210
   spacing: 10
 

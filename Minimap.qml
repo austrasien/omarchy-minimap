@@ -1825,6 +1825,7 @@ Item {
           anchors.fill: parent
           ringWidth: root.ringWidth
           cardinals: root.cfg.cardinals
+          onBatteryClicked: Quickshell.execDetached(["omarchy-shell", "austraz.power", "toggle"])
           now: root.now
           daylight: root.forecast ? Model.daylightArc(root.forecast.sunrise, root.forecast.sunset) : null
           daytime: Model.isDaytime(root.nowSec, root.forecast ? root.forecast.sunrise : 0, root.forecast ? root.forecast.sunset : 0)
