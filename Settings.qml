@@ -149,6 +149,16 @@ Column {
 
   Row {
     spacing: 8
+    Label { text: "Points cardinaux"; height: cardinalsToggle.height }
+    ToggleSwitch {
+      id: cardinalsToggle
+      checked: settings.cfg.cardinals
+      onToggled: settings.save({ cardinals: !settings.cfg.cardinals })
+    }
+  }
+
+  Row {
+    spacing: 8
     Label { text: "Sur la barre"; height: overBar.height }
     ToggleSwitch {
       id: overBar

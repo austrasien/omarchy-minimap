@@ -15,6 +15,7 @@ Item {
   id: rim
 
   property real ringWidth: 22         // dial + battery band, see below
+  property bool cardinals: true      // pilot's bezel, else plain ticks at the quarters too
   readonly property real unit: ringWidth / 22   // the sizes below are for a 22 px ring
   readonly property real dialWidth: 8 * unit
   readonly property real batteryWidth: 8 * unit   // as wide as the dial
@@ -31,6 +32,7 @@ Item {
   // From the outside: dial 8 px, 3 px gap, battery band 8 px, 3 px gap,
   // then the map's edge.
   readonly property real dialR: r - dialWidth / 2
+  readonly property real cardinalOut: 3 * unit   // how far the noon triangle and E, S, W stick out
   readonly property real batteryR: r - dialWidth - bandGap - batteryWidth / 2
   readonly property real timeAngle: Model.dialAngle(Model.secondsOfDay(now))
   readonly property color sunColor: "#f6c344"
@@ -122,7 +124,7 @@ Item {
   // A pilot's bezel: a downward triangle at the top, E, S and W at the
   // other quarters, and a small tick at each watch hour in between.
   Repeater {
-    model: [30, 60, 120, 150, 210, 240, 300, 330]
+    model: rim.cardinals ? [30, 60, 120, 150, 210, 240, 300, 330] : [0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330]
     delegate: Rectangle {
       required property var modelData
       width: 1.5 * rim.unit
@@ -137,10 +139,11 @@ Item {
 
   Shape {
     id: noon
+    visible: rim.cardinals
     // From just past the outer edge down to the middle of the battery band.
-    readonly property real tipOut: 3 * rim.unit
+    readonly property real tipOut: rim.cardinalOut
     readonly property real h: rim.dialWidth + rim.bandGap + rim.batteryWidth / 2 + tipOut
-    readonly property real w: h * 0.9
+    readonly property real w: h * 1.25   // wider than tall
     width: w; height: h
     x: rim.r - w / 2
     y: -tipOut
@@ -155,15 +158,15 @@ Item {
   }
 
   Repeater {
-    model: [{ a: 90, t: "E" }, { a: 180, t: "S" }, { a: 270, t: "W" }]
+    model: rim.cardinals ? [{ a: 90, t: "E" }, { a: 180, t: "S" }, { a: 270, t: "W" }] : []
     delegate: Text {
       id: cardinal
       required property var modelData
-      // The letter's ink, not its line box, sits inside the ring's outer
-      // edge, one unit in.
+      // The letter's ink, not its line box, sticks out past the ring's
+      // outer edge by `cardinalOut`.
       readonly property rect ink: cardinalInk.tightBoundingRect
       readonly property real half: (modelData.a % 180 === 0 ? ink.height : ink.width) / 2
-      readonly property real at: rim.r - 1 * rim.unit - half
+      readonly property real at: rim.r + rim.cardinalOut - half
       readonly property real a: modelData.a * Math.PI / 180
       x: rim.r + at * Math.sin(a) - ink.x - ink.width / 2
       y: rim.r - at * Math.cos(a) - baselineOffset - ink.y - ink.height / 2

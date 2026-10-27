@@ -238,6 +238,8 @@ workspace has a fullscreen window.
 persistent ones keep their id, an empty desk still on screen goes last.
 `clock`: `false` hides the clock, which then only shows while the minimap
 is hovered (it opens the map list).
+`cardinals`: `false` drops the pilot's bezel (a triangle at noon, E, S and W)
+for plain ticks at those four hours.
 `rainAlert`: minutes (0–30, default 10, 0 = off) before the forecast rain
 starts to show the weather map as a notification (playing the end of the
 radar loop), once per dry spell. The

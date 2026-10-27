@@ -39,6 +39,8 @@ function normalizeConfig(raw) {
     autoCompact: c.autoCompact === true,
     // false: the clock only shows while the minimap is hovered.
     clock: c.clock !== false,
+    // false: plain ticks at noon and at E, S, W instead of the pilot's bezel.
+    cardinals: c.cardinals !== false,
     // true: Omarchy's toasts stay hidden, the notifications map shows them
     // (honoured by a notification daemon that reads this file).
     hideToasts: c.hideToasts !== false,
