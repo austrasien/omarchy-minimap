@@ -701,11 +701,11 @@ function durationText(seconds) {
 }
 
 // How dark an unvisited desk's arc gets, 0 (plain grey) to 1 (black):
-// unchanged for 5 min, then quickly at first and slower after, black at 2 h.
+// unchanged for 2 min, then quickly at first and slower after, black at 1 h.
 function deskDarkness(idle) {
-  if (!(idle > 300)) return 0
-  if (idle >= 7200) return 1
-  return Math.pow((idle - 300) / 6900, 0.6)
+  if (!(idle > 120)) return 0
+  if (idle >= 3600) return 1
+  return Math.pow((idle - 120) / 3480, 0.6)
 }
 
 // Renumbering that closes the gaps between workspaces, like Super+Shift+
