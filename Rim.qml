@@ -137,15 +137,19 @@ Item {
 
   Shape {
     id: noon
-    readonly property real w: rim.dialWidth * 1.3
-    readonly property real h: rim.dialWidth * 0.95
+    // From just past the outer edge down to the middle of the battery band.
+    readonly property real tipOut: 3 * rim.unit
+    readonly property real h: rim.dialWidth + rim.bandGap + rim.batteryWidth / 2 + tipOut
+    readonly property real w: h * 0.9
     width: w; height: h
     x: rim.r - w / 2
-    y: rim.r - rim.dialR - h / 2
+    y: -tipOut
     preferredRendererType: Shape.CurveRenderer
     ShapePath {
-      fillColor: Qt.alpha(Color.foreground, 0.85)
-      strokeColor: "transparent"
+      fillColor: Color.foreground
+      strokeColor: Color.background
+      strokeWidth: 1.5 * rim.unit
+      joinStyle: ShapePath.MiterJoin
       PathPolyline { path: [Qt.point(0, 0), Qt.point(noon.w, 0), Qt.point(noon.w / 2, noon.h), Qt.point(0, 0)] }
     }
   }
@@ -153,14 +157,24 @@ Item {
   Repeater {
     model: [{ a: 90, t: "E" }, { a: 180, t: "S" }, { a: 270, t: "W" }]
     delegate: Text {
+      id: cardinal
       required property var modelData
-      x: rim.r + rim.dialR * Math.sin(modelData.a * Math.PI / 180) - width / 2
-      y: rim.r - rim.dialR * Math.cos(modelData.a * Math.PI / 180) - height / 2
+      // The letter's ink, not its line box, sits inside the ring's outer
+      // edge, one unit in.
+      readonly property rect ink: cardinalInk.tightBoundingRect
+      readonly property real half: (modelData.a % 180 === 0 ? ink.height : ink.width) / 2
+      readonly property real at: rim.r - 1 * rim.unit - half
+      readonly property real a: modelData.a * Math.PI / 180
+      x: rim.r + at * Math.sin(a) - ink.x - ink.width / 2
+      y: rim.r - at * Math.cos(a) - baselineOffset - ink.y - ink.height / 2
+      TextMetrics { id: cardinalInk; font: cardinal.font; text: cardinal.text }
       text: modelData.t
-      color: Qt.alpha(Color.foreground, 0.85)
-      font.family: Style.fontFamily
-      font.pixelSize: Math.round(rim.dialWidth * 1.15)
-      font.bold: true
+      color: Color.foreground
+      style: Text.Outline
+      styleColor: Color.background
+      font.family: "Noto Sans"
+      font.pixelSize: Math.round(rim.dialWidth * 1.7)
+      font.weight: Font.Black
     }
   }
 
