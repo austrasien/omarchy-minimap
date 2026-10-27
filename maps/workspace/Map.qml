@@ -13,6 +13,7 @@ Item {
     arcs: view.minimap.workspaceArcs
     bandWidth: view.minimap.bandWidth
     bandGap: view.minimap.bandGap
+    uiScale: view.minimap.uiScale
     markers: view.minimap.markers
     lastFocus: view.minimap.lastFocus
     deskVisits: view.minimap.deskVisits

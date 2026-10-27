@@ -319,8 +319,10 @@ Item {
   }
 
   readonly property real terrainSize: cfg.size - 2 * ringWidth - 2 * (bandWidth + bandGap)
-  readonly property int bandWidth: 18
-  readonly property int bandGap: 3
+  // Everything drawn on the disc grows with it; 210 px is the default size.
+  readonly property real uiScale: cfg.size / 210
+  readonly property int bandWidth: Math.round(18 * uiScale)
+  readonly property int bandGap: Math.round(3 * uiScale)
 
   readonly property var terrain: {
     var here = []
@@ -860,7 +862,7 @@ Item {
 
   // --------------------------------------------------------------- window
 
-  readonly property int ringWidth: 22   // dial 8 + gap 3 + battery 8 + gap 3
+  readonly property int ringWidth: Math.round(22 * uiScale)   // dial 8 + gap 3 + battery 8 + gap 3, scaled
   readonly property var targetScreen: {
     var screens = Quickshell.screens
     var want = cfg.monitor || (Hyprland.focusedMonitor ? Hyprland.focusedMonitor.name : "")
@@ -1529,7 +1531,7 @@ Item {
             readonly property bool overdriven: progress && max > 100 && value > 100
             readonly property real target: progress ? Math.max(0, Math.min(1, value / max)) : 0
             readonly property color tint: overdriven ? Color.urgent : Color.accent
-            readonly property real radius: width / 2 - 4
+            readonly property real radius: width / 2 - 4 * root.uiScale
 
             // The ring as drawn: springs after the target, unwinds on close.
             property real level: 0
@@ -1642,11 +1644,11 @@ Item {
             Rectangle {
               id: wave
               anchors.centerIn: parent
-              width: osdFace.width - 8
+              width: osdFace.width - 8 * root.uiScale
               height: width
               radius: width / 2
               color: "transparent"
-              border.width: 3
+              border.width: 3 * root.uiScale
               border.color: osdFace.tint
               opacity: 0
               visible: osdFace.progress
@@ -1667,7 +1669,7 @@ Item {
                 preferredRendererType: Shape.CurveRenderer
                 ShapePath {
                   strokeColor: Qt.alpha(Color.foreground, 0.12)
-                  strokeWidth: 8
+                  strokeWidth: 8 * root.uiScale
                   fillColor: "transparent"
                   PathAngleArc {
                     centerX: osdFace.width / 2; centerY: osdFace.height / 2
@@ -1678,7 +1680,7 @@ Item {
                 ShapePath {
                   strokeColor: osdFace.tint
                   Behavior on strokeColor { ColorAnimation { duration: 220 } }
-                  strokeWidth: 8
+                  strokeWidth: 8 * root.uiScale
                   fillColor: "transparent"
                   capStyle: ShapePath.FlatCap
                   PathAngleArc {
@@ -1690,7 +1692,7 @@ Item {
                 // The real 100 % when the scale goes past it (volume overdrive).
                 ShapePath {
                   strokeColor: osdFace.max > 100 ? Color.foreground : "transparent"
-                  strokeWidth: 12
+                  strokeWidth: 12 * root.uiScale
                   fillColor: "transparent"
                   capStyle: ShapePath.FlatCap
                   PathAngleArc {
@@ -1707,22 +1709,22 @@ Item {
                 visible: osdFace.shownLevel > 0.005
                 x: osdFace.width / 2 + osdFace.radius * Math.cos(osdFace.headAngle) - width / 2
                 y: osdFace.height / 2 + osdFace.radius * Math.sin(osdFace.headAngle) - height / 2
-                width: 30; height: 30
+                width: 30 * root.uiScale; height: width
                 Rectangle {
                   anchors.centerIn: parent
-                  width: 30; height: 30; radius: 15
+                  width: head.width; height: width; radius: width / 2
                   color: osdFace.tint
                   opacity: 0.22
                 }
                 Rectangle {
                   anchors.centerIn: parent
-                  width: 18; height: 18; radius: 9
+                  width: 18 * root.uiScale; height: width; radius: width / 2
                   color: osdFace.tint
                   opacity: 0.45
                 }
                 Rectangle {
                   anchors.centerIn: parent
-                  width: 10; height: 10; radius: 5
+                  width: 10 * root.uiScale; height: width; radius: width / 2
                   color: Qt.lighter(osdFace.tint, 1.6)
                 }
               }
@@ -1839,8 +1841,8 @@ Item {
           Behavior on opacity { NumberAnimation { duration: 150 } }
           anchors.horizontalCenter: parent.horizontalCenter
           anchors.bottom: parent.bottom
-          width: clock.implicitWidth + 12
-          height: clock.implicitHeight + 2
+          width: clock.implicitWidth + 12 * root.uiScale
+          height: clock.implicitHeight + 2 * root.uiScale
           radius: height / 2
           color: Color.background
           border.width: 1
@@ -1868,7 +1870,7 @@ Item {
             }
             color: Color.foreground
             font.family: Style.fontFamily
-            font.pixelSize: 11
+            font.pixelSize: Math.round(11 * root.uiScale)
             font.bold: true
           }
         }

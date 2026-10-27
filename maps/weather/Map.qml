@@ -59,6 +59,7 @@ Item {
     nowcast: view.minimap.forecast ? Model.nowcastLine(view.minimap.forecast.rain, view.minimap.nowSec) : ""
     nowSec: view.minimap.nowSec
     cacheDir: view.minimap.cacheDir
+    uiScale: view.minimap.uiScale
     ready: view.minimap.tilesReady
     onWantedChanged: if (view.shown) view.minimap.requestTiles(wanted)
     Component.onCompleted: if (view.shown) view.minimap.requestTiles(wanted)

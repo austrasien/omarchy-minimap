@@ -18,6 +18,7 @@ Item {
   property var arcs: []              // from Model.workspaceArcs
   property int bandWidth: 14
   property int bandGap: 3
+  property real uiScale: 1           // the fixed sizes below are for a 210 px disc
   property var markers: ({})         // address → working | waiting | done
   property var lastFocus: ({})       // address → epoch seconds
   property var deskVisits: ({})      // workspace id → epoch seconds it was last left
@@ -188,7 +189,7 @@ Item {
           width: 2 * r; height: 2 * r
           radius: r
           color: "transparent"
-          border.width: 2.5
+          border.width: 2.5 * map.uiScale
           border.color: Color.accent
           opacity: Math.sin(Math.PI * t) * 0.8
         }
@@ -226,7 +227,7 @@ Item {
       required property var modelData
       readonly property var arc: map.arcFor(modelData)
       readonly property real dist: map.width / 2 - map.bandWidth / 2
-      readonly property var slots: Model.arcIconSlots(arc, dist, map.bandWidth - 3, 2)
+      readonly property var slots: Model.arcIconSlots(arc, dist, map.bandWidth - 3 * map.uiScale, 2 * map.uiScale)
       readonly property bool numbered: map.numbersShown || slots.length === 0
       readonly property color ink: arc && (arc.arriving || (arc.leaving && map.settle < 0.5) || arc.state === "waiting" || arc.state === "done")
         ? Color.background : Color.foreground
@@ -243,7 +244,7 @@ Item {
         text: arcLabels.modelData < 0 ? "0" : String(arcLabels.modelData)
         color: arcLabels.ink
         font.family: Style.fontFamily
-        font.pixelSize: 11
+        font.pixelSize: Math.round(11 * map.uiScale)
         font.bold: true
       }
 
@@ -258,7 +259,7 @@ Item {
           delegate: Item {
             required property var modelData
             readonly property real a: modelData.angle * Math.PI / 180
-            width: map.bandWidth - 6; height: width
+            width: map.bandWidth - 6 * map.uiScale; height: width
             x: map.width / 2 + arcLabels.dist * Math.sin(a) - width / 2
             y: map.height / 2 - arcLabels.dist * Math.cos(a) - height / 2
 
@@ -266,7 +267,7 @@ Item {
               anchors.fill: parent
               visible: modelData.icon !== undefined
               source: modelData.icon || ""
-              sourceSize.width: 32; sourceSize.height: 32
+              sourceSize.width: 64; sourceSize.height: 64
               asynchronous: true
               smooth: true
               mipmap: true
@@ -277,7 +278,7 @@ Item {
               text: "+" + modelData.more
               color: arcLabels.ink
               font.family: Style.fontFamily
-              font.pixelSize: 9
+              font.pixelSize: Math.round(9 * map.uiScale)
               font.bold: true
             }
           }
@@ -325,7 +326,7 @@ Item {
           ShapePath {
             fillColor: tile.modelData.focused ? Qt.alpha(Color.accent, 0.35) : Qt.alpha(Color.foreground, 0.2)
             strokeColor: tile.modelData.focused ? Color.accent : Qt.alpha(Color.foreground, 0.4)
-            strokeWidth: tile.modelData.focused ? 1.5 : 1
+            strokeWidth: (tile.modelData.focused ? 1.5 : 1) * map.uiScale
             joinStyle: ShapePath.RoundJoin
             PathPolyline {
               path: tile.outline.map(function(p) { return Qt.point(p.x, p.y) })
@@ -346,7 +347,7 @@ Item {
           ShapePath {
             fillColor: Qt.alpha(map.markerColor(tile.marker), 0.45)
             strokeColor: map.markerColor(tile.marker)
-            strokeWidth: 2
+            strokeWidth: 2 * map.uiScale
             joinStyle: ShapePath.RoundJoin
             PathPolyline { path: tile.outline.map(function(p) { return Qt.point(p.x, p.y) }) }
           }
@@ -387,7 +388,7 @@ Item {
               width: 2 * r; height: 2 * r
               radius: r
               color: "transparent"
-              border.width: 2.5
+              border.width: 2.5 * map.uiScale
               border.color: Color.accent
               opacity: Math.sin(Math.PI * t) * 0.8
             }
@@ -433,7 +434,7 @@ Item {
         Image {
           id: appIcon
           visible: status === Image.Ready
-          readonly property real side: Math.min(30, Math.max(12, Math.sqrt(tile.centre.area) * 0.4))
+          readonly property real side: Math.min(30 * map.uiScale, Math.max(12 * map.uiScale, Math.sqrt(tile.centre.area) * 0.4))
           width: side; height: side
           x: tile.centre.x - width / 2
           y: tile.centre.y - height / 2
@@ -540,11 +541,11 @@ Item {
   Rectangle {
     visible: map.numbersShown && map.shownId !== -1
     anchors.centerIn: parent
-    width: Math.max(bigNumber.implicitWidth, bigNumber.implicitHeight) + 18
+    width: Math.max(bigNumber.implicitWidth, bigNumber.implicitHeight) + 18 * map.uiScale
     height: width
     radius: width / 2
     color: Qt.alpha(Color.background, 0.8)
-    border.width: 2
+    border.width: 2 * map.uiScale
     border.color: Color.accent
     z: 7
 
@@ -554,7 +555,7 @@ Item {
       text: map.shownId < 0 ? "0" : String(map.shownId)
       color: Color.foreground
       font.family: Style.fontFamily
-      font.pixelSize: 30
+      font.pixelSize: Math.round(30 * map.uiScale)
       font.bold: true
     }
   }
@@ -562,7 +563,7 @@ Item {
   // The dragged window's icon, under the pointer.
   Image {
     visible: map.dragAddress !== "" && status === Image.Ready
-    width: 26; height: 26
+    width: 26 * map.uiScale; height: width
     x: map.dragPoint.x - width / 2
     y: map.dragPoint.y - height / 2
     z: 10

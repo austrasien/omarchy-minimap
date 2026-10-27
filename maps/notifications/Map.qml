@@ -27,7 +27,8 @@ Item {
   property real offset: 0           // degrees the text's head has travelled
 
   // Text along the ring: one monospace cell per character.
-  readonly property real radius: width / 2 - 12
+  readonly property real k: minimap.uiScale || 1   // sizes below are for a 210 px minimap
+  readonly property real radius: width / 2 - 12 * k
   readonly property real step: cell.advanceWidth / Math.max(1, radius) * 180 / Math.PI
   readonly property var chars: current ? Array.from(current.text) : []
   readonly property real speed: 60   // degrees per second
@@ -37,7 +38,7 @@ Item {
   TextMetrics {
     id: cell
     font.family: Style.fontFamily
-    font.pixelSize: 13
+    font.pixelSize: Math.round(13 * view.k)
     font.bold: true
     text: "M"
   }

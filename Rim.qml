@@ -15,9 +15,10 @@ Item {
   id: rim
 
   property real ringWidth: 22         // dial + battery band, see below
-  readonly property real dialWidth: 8
-  readonly property real batteryWidth: 8   // as wide as the dial
-  readonly property real bandGap: 3        // clear space between the bands
+  readonly property real unit: ringWidth / 22   // the sizes below are for a 22 px ring
+  readonly property real dialWidth: 8 * unit
+  readonly property real batteryWidth: 8 * unit   // as wide as the dial
+  readonly property real bandGap: 3 * unit        // clear space between the bands
   property var now: new Date()
   property var daylight: null        // {start, end} dial angles, or null
   property bool daytime: true
@@ -36,7 +37,7 @@ Item {
   readonly property color dayColor: Qt.alpha(sunColor, 0.55)
   readonly property color nightColor: Qt.alpha("#5b8cff", 0.55)
   readonly property color restColor: Qt.alpha(Color.foreground, 0.08)
-  readonly property var moon: Model.moonOutline(Model.moonPhase(now.getTime() / 1000), (dialWidth + 6) / 2)
+  readonly property var moon: Model.moonOutline(Model.moonPhase(now.getTime() / 1000), (dialWidth + 6 * unit) / 2)
   // On battery the stripe runs from green (100 %) to red (0 %) and blinks
   // under 10 %; charging it is orange; the runtime a charge would give is green.
   readonly property bool batteryLow: rim.batteryMode === "discharging" && rim.battery >= 0 && rim.battery < 10
@@ -123,7 +124,7 @@ Item {
     model: [0, 90, 180, 270]
     delegate: Rectangle {
       required property var modelData
-      width: 1.5
+      width: 1.5 * rim.unit
       height: rim.dialWidth * 0.6
       radius: 1
       color: Qt.alpha(Color.foreground, 0.5)
@@ -138,7 +139,7 @@ Item {
     id: body
     readonly property real a: rim.timeAngle * Math.PI / 180
     readonly property real br: width / 2
-    width: rim.dialWidth + 6
+    width: rim.dialWidth + 6 * rim.unit
     height: width
     x: rim.r + rim.dialR * Math.sin(a) - width / 2
     y: rim.r - rim.dialR * Math.cos(a) - height / 2

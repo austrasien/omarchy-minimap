@@ -195,12 +195,12 @@ Item {
     preferredRendererType: Shape.CurveRenderer
     ShapePath {
       strokeColor: "#e53935"
-      strokeWidth: 8
+      strokeWidth: 8 * (view.minimap.uiScale || 1)
       fillColor: "transparent"
       capStyle: ShapePath.FlatCap
       PathAngleArc {
         centerX: view.width / 2; centerY: view.height / 2
-        radiusX: view.width / 2 - 4; radiusY: radiusX
+        radiusX: view.width / 2 - 4 * (view.minimap.uiScale || 1); radiusY: radiusX
         startAngle: -90
         sweepAngle: 360 * view.progress
       }

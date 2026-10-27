@@ -10,6 +10,7 @@ Item {
 
   property var location: null        // {name, lat, lon}
   property int zoom: 7
+  property real uiScale: 1          // fixed sizes below are for a 210 px minimap
   property string basemapStyle: "dark"
   property string radarHost: ""
   property var frames: []            // [{time, path}], oldest first
@@ -145,14 +146,14 @@ Item {
   Item {
     visible: map.location !== null
     anchors.centerIn: parent
-    width: 10; height: 10
+    width: 10 * map.uiScale; height: width
 
     Rectangle {
       id: pulse
       anchors.centerIn: parent
-      width: 10; height: 10; radius: width / 2
+      width: parent.width; height: width; radius: width / 2
       color: "transparent"
-      border.width: 2
+      border.width: 2 * map.uiScale
       border.color: Color.accent
       SequentialAnimation on scale {
         loops: Animation.Infinite
@@ -168,9 +169,9 @@ Item {
 
     Rectangle {
       anchors.centerIn: parent
-      width: 8; height: 8; radius: 4
+      width: 8 * map.uiScale; height: width; radius: width / 2
       color: Color.accent
-      border.width: 1.5
+      border.width: 1.5 * map.uiScale
       border.color: Color.background
     }
   }
@@ -184,7 +185,7 @@ Item {
     text: "Lieu inconnu\nomarchy-weather-location"
     color: Color.foreground
     font.family: Style.fontFamily
-    font.pixelSize: 11
+    font.pixelSize: Math.round(11 * map.uiScale)
   }
 
   // Nowcast and scan age, low in the disc.
@@ -200,8 +201,8 @@ Item {
     anchors.horizontalCenter: parent.horizontalCenter
     anchors.bottom: parent.bottom
     anchors.bottomMargin: parent.height * 0.12
-    width: info.implicitWidth + 12
-    height: info.implicitHeight + 4
+    width: info.implicitWidth + 12 * map.uiScale
+    height: info.implicitHeight + 4 * map.uiScale
     radius: height / 2
     color: Qt.alpha(Color.background, 0.8)
 
@@ -211,7 +212,7 @@ Item {
       text: parent.label
       color: Color.foreground
       font.family: Style.fontFamily
-      font.pixelSize: 10
+      font.pixelSize: Math.round(10 * map.uiScale)
     }
   }
 }
