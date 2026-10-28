@@ -863,7 +863,21 @@ Item {
           if (root.deskVisits[plan[i].from] !== undefined) visits[plan[i].to] = root.deskVisits[plan[i].from]
         root.deskVisits = visits
         refreshDebounce.restart()
+        compactSettle.restart()
       }
+    }
+  }
+
+  // Hyprland sends no event when a workspace changes id, and the dispatches
+  // above are async: the refresh right after them can still read the old
+  // ids, leaving a window on its former desk until the 2 s poll. Read
+  // workspaces and windows again once the renumbering has landed.
+  Timer {
+    id: compactSettle
+    interval: 350
+    onTriggered: {
+      Hyprland.refreshWorkspaces()
+      refreshDebounce.restart()
     }
   }
   onCfgChanged: if (cfg.autoCompact) compactDebounce.restart()
