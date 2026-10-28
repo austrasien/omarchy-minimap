@@ -268,6 +268,15 @@ Item {
       Behavior on color { ColorAnimation { duration: 220 } }
       font.family: Style.fontFamily
       font.pixelSize: osdFace.width * (osdFace.detailed ? 0.13 : osdFace.progress ? 0.2 : 0.26)
+      // Nerd Font glyphs draw off their advance cell: centre the ink.
+      transform: Translate {
+        x: Math.round(iconMetrics.advanceWidth / 2 - iconMetrics.tightBoundingRect.x - iconMetrics.tightBoundingRect.width / 2)
+      }
+      TextMetrics {
+        id: iconMetrics
+        font: osdIcon.font
+        text: osdIcon.text
+      }
       SequentialAnimation {
         id: kick
         NumberAnimation { target: osdIcon; property: "scale"; to: 1.22; duration: 70; easing.type: Easing.OutQuad }
