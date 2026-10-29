@@ -92,6 +92,13 @@ test("sunTimes: Paris on 27 Oct 2026 (CET)", () => {
   assert.ok(near(t.sunset, 16, 38), "sunset " + hm(t.sunset))
   assert.ok(t.goldenEnd > t.sunrise && t.goldenEnd - t.sunrise < 5400)
   assert.ok(t.goldenStart < t.sunset && t.sunset - t.goldenStart < 5400)
+  // Twilight steps outwards: civil, nautical, astronomical.
+  assert.ok(t.civilDawn < t.sunrise && t.nauticalDawn < t.civilDawn && t.astroDawn < t.nauticalDawn)
+  assert.ok(t.civilDusk > t.sunset && t.nauticalDusk > t.civilDusk && t.astroDusk > t.nauticalDusk)
+  assert.equal(Model.twilightArcs(t.sunrise, t.sunset, t).length, 6)
+  // Within 2 h of the evening bands only; none in the middle of the night.
+  assert.equal(Model.twilightArcs(t.sunrise, t.sunset, t, t.sunset, 7200).length, 3)
+  assert.equal(Model.twilightArcs(t.sunrise, t.sunset, t, t.astroDusk + 4 * 3600, 7200).length, 0)
   const polar = Model.sunTimes(Date.UTC(2026, 11, 21, 12), 80, 0)   // polar night
   assert.equal(polar.sunrise, 0)
   assert.equal(polar.sunset, 0)

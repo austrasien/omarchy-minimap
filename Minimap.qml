@@ -175,13 +175,22 @@ Item {
   readonly property var sun: location ? Model.sunTimes(now.getTime(), location.lat, location.lon) : null
   // The golden hours as dial arcs: sunrise until the sun is 6° up, 6° until sunset.
   // Bounded by the forecast's sunrise and sunset when there is one, so they
-  // meet the daylight arc and the times shown.
+  // meet the daylight arc and the times shown. Each one only shows from 2 h
+  // before it until 2 h after it.
   readonly property real sunrise: forecast && forecast.sunrise ? forecast.sunrise : (sun ? sun.sunrise : 0)
   readonly property real sunset: forecast && forecast.sunset ? forecast.sunset : (sun ? sun.sunset : 0)
   readonly property var goldenArcs: {
     if (!sun || !sun.goldenEnd || !sun.goldenStart || !sunrise || !sunset) return []
-    return [Model.daylightArc(sunrise, sun.goldenEnd), Model.daylightArc(sun.goldenStart, sunset)]
+    return [[sunrise, sun.goldenEnd], [sun.goldenStart, sunset]]
+      .filter(function(g) { return nowSec >= g[0] - 7200 && nowSec <= g[1] + 7200 })
+      .map(function(g) { return Model.daylightArc(g[0], g[1]) })
   }
+  // The twilight bands, like the golden hours, from 2 h before until 2 h after.
+  readonly property var twilightArcs: Model.twilightArcs(sunrise, sunset, sun, nowSec, 7200)
+  // The sun stays on the dial through civil twilight; the moon after it.
+  readonly property bool sunShown: sun && sun.civilDawn && sun.civilDusk
+    ? nowSec >= sun.civilDawn && nowSec < sun.civilDusk
+    : Model.isDaytime(nowSec, sunrise, sunset)
 
   function hm(sec) { return Model.clockText(new Date(sec * 1000)) }
 
@@ -962,12 +971,12 @@ Item {
 
   // --------------------------------------------------------------- window
 
-  readonly property int ringWidth: Math.round(22 * uiScale)   // dial 8 + gap 3 + battery 8 + gap 3, scaled
+  readonly property int ringWidth: Math.round(22 * uiScale)   // battery 8 + gap 3 + dial 8 + gap 3, scaled
 
   // ------------------------------------------------------------ rim bands
   //
   // Each folder under bands/ holding a band.json is a band: a ring of its
-  // own on the rim, inside the battery band, the first one outermost. Its
+  // own on the rim, inside the day/night dial, the first one outermost. Its
   // entry QML gets `minimap`, then `radius` (the band's centre line) and
   // `thickness`; the map shrinks to make room. bin/list-maps bands reads
   // them; turned off in the settings (disabledBands), a band takes no room.
@@ -1530,8 +1539,11 @@ Item {
 
         readonly property real mapSize: width - 2 * root.rimWidth
 
+        // The battery band has no backing: outside its stripe the wallpaper
+        // ring (Cutout.qml) shows through.
         Rectangle {
           anchors.fill: parent
+          anchors.margins: rim.batteryWidth
           radius: width / 2
           color: Color.background
         }
@@ -1682,6 +1694,7 @@ Item {
         }
 
         Rim {
+          id: rim
           anchors.fill: parent
           ringWidth: root.ringWidth
           cardinals: root.cfg.cardinals
@@ -1690,6 +1703,8 @@ Item {
           daylight: root.forecast ? Model.daylightArc(root.forecast.sunrise, root.forecast.sunset) : null
           daytime: Model.isDaytime(root.nowSec, root.forecast ? root.forecast.sunrise : 0, root.forecast ? root.forecast.sunset : 0)
           golden: root.goldenArcs
+          twilight: root.twilightArcs
+          sunShown: root.sunShown
           onDialHovered: function(on) { root.dialHovered = on }
           onBatteryHovered: function(on) { root.batteryHovered = on }
           battery: root.batteryPercent
@@ -1698,7 +1713,7 @@ Item {
           batteryMode: root.batteryMode
         }
 
-        // The rim bands, from the battery band inwards (see rimBands).
+        // The rim bands, from the dial inwards (see rimBands).
         Repeater {
           model: root.activeRimBands
           delegate: Loader {

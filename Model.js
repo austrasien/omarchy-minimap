@@ -215,6 +215,34 @@ function daylightArc(sunrise, sunset) {
   return { start: a, end: b }
 }
 
+// The twilight as dial arcs, from the sun outwards on both sides:
+// [{start, end, level}], level 0 civil, 1 nautical, 2 astronomical. A level
+// the sun never gets down to ends the list. With nowSec, a band only shows
+// from `margin` seconds before it until `margin` after it (yesterday's and
+// tomorrow's times count too, for bands that cross midnight).
+function twilightArcs(sunrise, sunset, sun, nowSec, margin) {
+  if (!sunrise || !sunset || !sun) return []
+  var dawns = [sunrise, sun.civilDawn, sun.nauticalDawn, sun.astroDawn]
+  var dusks = [sunset, sun.civilDusk, sun.nauticalDusk, sun.astroDusk]
+  function near(a, b) {
+    if (nowSec === undefined) return true
+    for (var day = -1; day <= 1; day++) {
+      var o = day * 86400
+      if (nowSec >= a + o - margin && nowSec <= b + o + margin) return true
+    }
+    return false
+  }
+  function arc(a, b, level) {
+    return { start: dialAngle(secondsOfDay(new Date(a * 1000))), end: dialAngle(secondsOfDay(new Date(b * 1000))), level: level }
+  }
+  var arcs = []
+  for (var i = 0; i < 3 && dawns[i + 1] && dusks[i + 1]; i++) {
+    if (near(dusks[i], dusks[i + 1])) arcs.push(arc(dusks[i], dusks[i + 1], i))
+    if (near(dawns[i + 1], dawns[i])) arcs.push(arc(dawns[i + 1], dawns[i], i))
+  }
+  return arcs
+}
+
 function isDaytime(nowSec, sunrise, sunset) {
   if (!sunrise || !sunset) {
     var h = new Date(nowSec * 1000).getHours()
@@ -453,7 +481,8 @@ function discLayout(windows, size, fallback) {
 //
 // Sunrise, sunset and the golden hours for a day and a place, after
 // SunCalc (Vladimir Agafonkin, BSD): the golden hour runs from sunrise
-// until the sun is 6° up, and from 6° until sunset. Epoch seconds, 0 when
+// until the sun is 6° up, and from 6° until sunset; twilight is civil down
+// to 6° below, nautical to 12°, astronomical to 18°. Epoch seconds, 0 when
 // the sun never crosses that height (polar day or night).
 var SUN_RAD = Math.PI / 180
 var SUN_J1970 = 2440588
@@ -478,12 +507,17 @@ function sunTimes(ms, lat, lon) {
     return SUN_J2000 + a + 0.0053 * Math.sin(M) - 0.0069 * Math.sin(2 * L)
   }
   function epoch(j) { return j === null ? 0 : (j + 0.5 - SUN_J1970) * 86400 }
+  function rise(j) { return j === null ? 0 : epoch(noon - (j - noon)) }
   var set = setting(-0.833), golden = setting(6)
+  var civil = setting(-6), nautical = setting(-12), astro = setting(-18)
   return {
-    sunrise: set === null ? 0 : epoch(noon - (set - noon)),
+    sunrise: rise(set),
     sunset: epoch(set),
-    goldenEnd: golden === null ? 0 : epoch(noon - (golden - noon)),
-    goldenStart: epoch(golden)
+    goldenEnd: rise(golden),
+    goldenStart: epoch(golden),
+    civilDawn: rise(civil), civilDusk: epoch(civil),
+    nauticalDawn: rise(nautical), nauticalDusk: epoch(nautical),
+    astroDawn: rise(astro), astroDusk: epoch(astro)
   }
 }
 
@@ -865,6 +899,7 @@ if (typeof module !== "undefined") {
     wallpaperCrop: wallpaperCrop,
     deskOrder: deskOrder,
     sunTimes: sunTimes,
+    twilightArcs: twilightArcs,
     workspaceArcs: workspaceArcs,
     discLayout: discLayout,
     dialAngle: dialAngle,

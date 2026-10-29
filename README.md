@@ -63,8 +63,13 @@ A round, game-style minimap pinned to a screen corner of the Omarchy shell.
 - **Rim**: a 24 h dial (noon at the top, midnight at the bottom). By day the
   arc from the real sunrise to sunset is yellow, with the sun on the current
   time; by night the arc from sunset to sunrise is blue, with the moon drawn
-  in its real phase (mean lunation, waxing lit on the right). Between the
-  map's edge and the dial, a band of its own carries the battery: on
+  in its real phase (mean lunation, waxing lit on the right). Twilight shades
+  the dial on both sides of the night: civil (down to 6° below the horizon)
+  in pink, nautical (12°) in purple, astronomical (18°) in light blue, and the
+  sun stays on the dial through civil twilight. The golden hours and each
+  twilight band only show from 2 h before them until 2 h after. Outside the
+  dial, a band of its own carries the battery, with the wallpaper showing
+  through around its stripe: on
   battery a stripe from now to the estimated empty time (level shown next to
   the clock), green at 100 % shading to red at 0 %, blinking under 10 %; charging, an orange stripe to full followed by a green one for
   how long that charge would last; plugged in and full, the green runtime
@@ -212,7 +217,7 @@ covers are fetched with curl into
 
 ## Rim bands
 
-A band is a ring of its own on the rim, inside the battery band: the map
+A band is a ring of its own on the rim, inside the day/night dial: the map
 shrinks to make room. Like maps, each is a folder, under `bands/`, holding a
 `band.json` (`id`, `name`, `entry` defaulting to `Band.qml`, `order`) and
 usually linked from the plugin that ships it; `bands/` is ignored by git.

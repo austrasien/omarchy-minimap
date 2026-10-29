@@ -7,10 +7,13 @@ import "Model.js" as Model
 // bottom). By day the arc from the real sunrise to sunset is yellow with the
 // sun on the current time; by night the arc from sunset to sunrise is blue
 // with the moon in its real phase; the golden hours (sunrise until the sun
-// is 6° up, and 6° until sunset) warmer on it. Hovering the dial or the
+// is 6° up, and 6° until sunset) warmer on it; on the night arc the
+// twilight (civil, nautical, astronomical) fades from the sun's side into
+// the night, each band only from 2 h before it until 2 h after; the sun
+// stays on through civil twilight. Hovering the dial or the
 // battery band tells the minimap (dialHovered, batteryHovered), which
 // shows their details in the middle circle. From the map outwards, none overlapping:
-// the map's edge, the battery band, the day/night dial. Battery: on
+// the map's edge, the day/night dial, the battery band. Battery: on
 // battery a stripe from now to the estimated empty time; charging an orange
 // stripe to full, then a green one for how long that charge would last;
 // plugged in and full, the green runtime from now.
@@ -29,6 +32,8 @@ Item {
   property var now: new Date()
   property var daylight: null        // {start, end} dial angles, or null
   property var golden: []            // [{start, end}] dial angles, the golden hours
+  property var twilight: []          // [{start, end, level}] dial angles, 0 civil … 2 astronomical, the near ones
+  property bool sunShown: daytime    // the sun on the dial, else the moon
   property bool daytime: true
   property int battery: -1           // percent, -1 = no battery
   property string batteryMode: ""    // discharging | charging | estimate
@@ -36,17 +41,19 @@ Item {
   property real batteryAfterSeconds: 0 // dashed stripe after it: runtime on a charge
 
   readonly property real r: Math.min(width, height) / 2
-  // From the outside: dial 8 px, 3 px gap, battery band 8 px, 3 px gap,
+  // From the outside: battery band 8 px, 3 px gap, dial 8 px, 3 px gap,
   // then the map's edge.
-  readonly property real dialR: r - dialWidth / 2
+  readonly property real dialR: r - batteryWidth - bandGap - dialWidth / 2
   readonly property real cardinalOut: 3 * unit   // how far the noon triangle and E, S, W stick out
-  readonly property real batteryR: r - dialWidth - bandGap - batteryWidth / 2
+  readonly property real batteryR: r - batteryWidth / 2
   readonly property real timeAngle: Model.dialAngle(Model.secondsOfDay(now))
   readonly property color sunColor: "#f6c344"
   readonly property color dayColor: Qt.alpha(sunColor, 0.55)
   readonly property color nightColor: Qt.alpha("#5b8cff", 0.55)
   readonly property color restColor: Qt.alpha(Color.foreground, 0.08)
   readonly property color goldenColor: Qt.alpha("#ff9f43", 0.8)
+  // Twilight, lighter towards the sun: civil, nautical, astronomical.
+  readonly property var twilightColors: [Qt.alpha("#ff8a65", 0.7), Qt.alpha("#b08cff", 0.6), Qt.alpha("#7f9fff", 0.55)]
   readonly property var moon: Model.moonOutline(Model.moonPhase(now.getTime() / 1000), (dialWidth + 6 * unit) / 2)
   // On battery the stripe runs from green (100 %) to red (0 %) and blinks
   // under 10 %; charging it is orange; the runtime a charge would give is green.
@@ -155,6 +162,28 @@ Item {
     }
   }
 
+  // The twilight bands, by day too (over the bare ring) when one is near.
+  Repeater {
+    model: rim.twilight
+    delegate: Shape {
+      required property var modelData
+      anchors.fill: parent
+      preferredRendererType: Shape.CurveRenderer
+      ShapePath {
+        strokeColor: rim.twilightColors[modelData.level]
+        strokeWidth: rim.dialWidth
+        fillColor: "transparent"
+        capStyle: ShapePath.FlatCap
+        PathAngleArc {
+          centerX: rim.r; centerY: rim.r
+          radiusX: rim.dialR; radiusY: rim.dialR
+          startAngle: rim.shapeAngle(modelData.start)
+          sweepAngle: rim.sweep(modelData.start, modelData.end)
+        }
+      }
+    }
+  }
+
   // A pilot's bezel: a downward triangle at the top, E, S and W at the
   // other quarters, and a small tick at each watch hour in between.
   Repeater {
@@ -182,9 +211,9 @@ Item {
     visible: rim.cardinals && opacity > 0
     opacity: covered ? 0 : 1
     Behavior on opacity { NumberAnimation { duration: 300 } }
-    // From just past the outer edge down to the middle of the battery band.
+    // From just past the outer edge down to the middle of the dial.
     readonly property real tipOut: rim.cardinalOut
-    readonly property real h: rim.dialWidth + rim.bandGap + rim.batteryWidth / 2 + tipOut
+    readonly property real h: rim.batteryWidth + rim.bandGap + rim.dialWidth / 2 + tipOut
     readonly property real w: h * 1.25   // wider than tall
     width: w; height: h
     x: rim.r - w / 2
@@ -223,7 +252,8 @@ Item {
     }
   }
 
-  // The sun, or at night the moon in its current phase, on the current time.
+  // The sun (through civil twilight too), or later the moon in its current
+  // phase, on the current time.
   Item {
     id: body
     readonly property real a: rim.timeAngle * Math.PI / 180
@@ -236,7 +266,7 @@ Item {
     y: rim.r - rim.dialR * Math.cos(a) - height / 2
 
     Rectangle {
-      visible: rim.daytime
+      visible: rim.sunShown
       anchors.fill: parent
       radius: width / 2
       color: rim.sunColor
@@ -244,7 +274,7 @@ Item {
 
     // The dark side, so a new moon still shows as an outline.
     Rectangle {
-      visible: !rim.daytime
+      visible: !rim.sunShown
       anchors.fill: parent
       radius: width / 2
       color: Color.background
@@ -254,7 +284,7 @@ Item {
 
     // The lit side, between the limb and the terminator.
     Shape {
-      visible: !rim.daytime
+      visible: !rim.sunShown
       anchors.fill: parent
       preferredRendererType: Shape.CurveRenderer
       ShapePath {
