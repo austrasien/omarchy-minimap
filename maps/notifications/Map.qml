@@ -31,7 +31,7 @@ Item {
   readonly property real radius: width / 2 - 12 * k
   readonly property real step: cell.advanceWidth / Math.max(1, radius) * 180 / Math.PI
   readonly property var chars: current ? Array.from(current.text) : []
-  readonly property real speed: 60   // degrees per second
+  readonly property real speed: 120  // degrees per second
   readonly property real lap: 360 + chars.length * step
   readonly property int runMs: Math.round(lap / speed * 1000)
 
