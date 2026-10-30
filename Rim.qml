@@ -22,6 +22,7 @@ Item {
 
   property real ringWidth: 22         // dial + battery band, see below
   property bool cardinals: true      // pilot's bezel, else plain ticks at the quarters too
+  property real dialShown: 1         // 0 while a ticker runs where the dial is
   signal batteryClicked()
   signal batteryHovered(bool on)
   signal dialHovered(bool on)
@@ -78,62 +79,10 @@ Item {
   function shapeAngle(dial) { return dial - 90 }
   function sweep(start, end) { return ((end - start) % 360 + 360) % 360 }
 
+  // The battery band, apart from the dial so the dial can step aside.
   Shape {
     anchors.fill: parent
     preferredRendererType: Shape.CurveRenderer
-
-    ShapePath {
-      strokeColor: rim.restColor
-      strokeWidth: rim.dialWidth
-      fillColor: "transparent"
-      capStyle: ShapePath.FlatCap
-      PathAngleArc {
-        centerX: rim.r; centerY: rim.r
-        radiusX: rim.dialR; radiusY: rim.dialR
-        startAngle: 0; sweepAngle: 360
-      }
-    }
-
-    // Day: sunrise → sunset. Night: sunset → sunrise.
-    ShapePath {
-      strokeColor: rim.daylight ? (rim.daytime ? rim.dayColor : rim.nightColor) : "transparent"
-      strokeWidth: rim.dialWidth
-      fillColor: "transparent"
-      capStyle: ShapePath.FlatCap
-      PathAngleArc {
-        centerX: rim.r; centerY: rim.r
-        radiusX: rim.dialR; radiusY: rim.dialR
-        startAngle: !rim.daylight ? 0 : rim.shapeAngle(rim.daytime ? rim.daylight.start : rim.daylight.end)
-        sweepAngle: !rim.daylight ? 0 : (rim.daytime ? rim.sweep(rim.daylight.start, rim.daylight.end)
-          : rim.sweep(rim.daylight.end, rim.daylight.start))
-      }
-    }
-
-    // The golden hours, warmer over the daylight arc.
-    ShapePath {
-      strokeColor: rim.golden.length > 0 ? rim.goldenColor : "transparent"
-      strokeWidth: rim.dialWidth
-      fillColor: "transparent"
-      capStyle: ShapePath.FlatCap
-      PathAngleArc {
-        centerX: rim.r; centerY: rim.r
-        radiusX: rim.dialR; radiusY: rim.dialR
-        startAngle: rim.golden.length > 0 ? rim.shapeAngle(rim.golden[0].start) : 0
-        sweepAngle: rim.golden.length > 0 ? rim.sweep(rim.golden[0].start, rim.golden[0].end) : 0
-      }
-    }
-    ShapePath {
-      strokeColor: rim.golden.length > 1 ? rim.goldenColor : "transparent"
-      strokeWidth: rim.dialWidth
-      fillColor: "transparent"
-      capStyle: ShapePath.FlatCap
-      PathAngleArc {
-        centerX: rim.r; centerY: rim.r
-        radiusX: rim.dialR; radiusY: rim.dialR
-        startAngle: rim.golden.length > 1 ? rim.shapeAngle(rim.golden[1].start) : 0
-        sweepAngle: rim.golden.length > 1 ? rim.sweep(rim.golden[1].start, rim.golden[1].end) : 0
-      }
-    }
 
     ShapePath {
       strokeColor: rim.batterySeconds > 0 ? rim.batteryColor : "transparent"
@@ -162,69 +111,138 @@ Item {
     }
   }
 
-  // The twilight bands, by day too (over the bare ring) when one is near.
-  Repeater {
-    model: rim.twilight
-    delegate: Shape {
-      required property var modelData
+  // The dial, its bezel's ticks and noon triangle, the sun or moon: they
+  // fade out, sinking a little towards the map, while a ticker runs where
+  // they were (dialShown 0). E, S and W stay, out on the battery band.
+  Item {
+    id: dial
+    anchors.fill: parent
+    opacity: rim.dialShown
+    scale: 0.97 + 0.03 * rim.dialShown
+    visible: opacity > 0
+
+    Shape {
       anchors.fill: parent
       preferredRendererType: Shape.CurveRenderer
+
       ShapePath {
-        strokeColor: rim.twilightColors[modelData.level]
+        strokeColor: rim.restColor
         strokeWidth: rim.dialWidth
         fillColor: "transparent"
         capStyle: ShapePath.FlatCap
         PathAngleArc {
           centerX: rim.r; centerY: rim.r
           radiusX: rim.dialR; radiusY: rim.dialR
-          startAngle: rim.shapeAngle(modelData.start)
-          sweepAngle: rim.sweep(modelData.start, modelData.end)
+          startAngle: 0; sweepAngle: 360
+        }
+      }
+
+      // Day: sunrise → sunset. Night: sunset → sunrise.
+      ShapePath {
+        strokeColor: rim.daylight ? (rim.daytime ? rim.dayColor : rim.nightColor) : "transparent"
+        strokeWidth: rim.dialWidth
+        fillColor: "transparent"
+        capStyle: ShapePath.FlatCap
+        PathAngleArc {
+          centerX: rim.r; centerY: rim.r
+          radiusX: rim.dialR; radiusY: rim.dialR
+          startAngle: !rim.daylight ? 0 : rim.shapeAngle(rim.daytime ? rim.daylight.start : rim.daylight.end)
+          sweepAngle: !rim.daylight ? 0 : (rim.daytime ? rim.sweep(rim.daylight.start, rim.daylight.end)
+            : rim.sweep(rim.daylight.end, rim.daylight.start))
+        }
+      }
+
+      // The golden hours, warmer over the daylight arc.
+      ShapePath {
+        strokeColor: rim.golden.length > 0 ? rim.goldenColor : "transparent"
+        strokeWidth: rim.dialWidth
+        fillColor: "transparent"
+        capStyle: ShapePath.FlatCap
+        PathAngleArc {
+          centerX: rim.r; centerY: rim.r
+          radiusX: rim.dialR; radiusY: rim.dialR
+          startAngle: rim.golden.length > 0 ? rim.shapeAngle(rim.golden[0].start) : 0
+          sweepAngle: rim.golden.length > 0 ? rim.sweep(rim.golden[0].start, rim.golden[0].end) : 0
+        }
+      }
+      ShapePath {
+        strokeColor: rim.golden.length > 1 ? rim.goldenColor : "transparent"
+        strokeWidth: rim.dialWidth
+        fillColor: "transparent"
+        capStyle: ShapePath.FlatCap
+        PathAngleArc {
+          centerX: rim.r; centerY: rim.r
+          radiusX: rim.dialR; radiusY: rim.dialR
+          startAngle: rim.golden.length > 1 ? rim.shapeAngle(rim.golden[1].start) : 0
+          sweepAngle: rim.golden.length > 1 ? rim.sweep(rim.golden[1].start, rim.golden[1].end) : 0
         }
       }
     }
-  }
 
-  // A pilot's bezel: a downward triangle at the top, E, S and W at the
-  // other quarters, and a small tick at each watch hour in between.
-  Repeater {
-    model: rim.cardinals ? [30, 60, 120, 150, 210, 240, 300, 330] : [0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330]
-    delegate: Rectangle {
-      required property var modelData
-      width: 1.5 * rim.unit
-      height: rim.dialWidth * 0.6
-      radius: 1
-      color: Qt.alpha(Color.foreground, 0.5)
-      x: rim.r + (rim.dialR) * Math.sin(modelData * Math.PI / 180) - width / 2
-      y: rim.r - (rim.dialR) * Math.cos(modelData * Math.PI / 180) - height / 2
-      rotation: modelData
+    // The twilight bands, by day too (over the bare ring) when one is near.
+    Repeater {
+      model: rim.twilight
+      delegate: Shape {
+        required property var modelData
+        anchors.fill: parent
+        preferredRendererType: Shape.CurveRenderer
+        ShapePath {
+          strokeColor: rim.twilightColors[modelData.level]
+          strokeWidth: rim.dialWidth
+          fillColor: "transparent"
+          capStyle: ShapePath.FlatCap
+          PathAngleArc {
+            centerX: rim.r; centerY: rim.r
+            radiusX: rim.dialR; radiusY: rim.dialR
+            startAngle: rim.shapeAngle(modelData.start)
+            sweepAngle: rim.sweep(modelData.start, modelData.end)
+          }
+        }
+      }
     }
-  }
 
-  Shape {
-    id: noon
-    // Out of the way while the sun (or the moon) passes over it.
-    readonly property bool covered: {
-      var nx = Math.max(x, Math.min(body.cx, x + width))
-      var ny = Math.max(y, Math.min(body.cy, y + height))
-      return Math.hypot(body.cx - nx, body.cy - ny) < body.br
+    // A pilot's bezel: a downward triangle at the top, E, S and W at the
+    // other quarters, and a small tick at each watch hour in between.
+    Repeater {
+      model: rim.cardinals ? [30, 60, 120, 150, 210, 240, 300, 330] : [0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330]
+      delegate: Rectangle {
+        required property var modelData
+        width: 1.5 * rim.unit
+        height: rim.dialWidth * 0.6
+        radius: 1
+        color: Qt.alpha(Color.foreground, 0.5)
+        x: rim.r + (rim.dialR) * Math.sin(modelData * Math.PI / 180) - width / 2
+        y: rim.r - (rim.dialR) * Math.cos(modelData * Math.PI / 180) - height / 2
+        rotation: modelData
+      }
     }
-    visible: rim.cardinals && opacity > 0
-    opacity: covered ? 0 : 1
-    Behavior on opacity { NumberAnimation { duration: 300 } }
-    // From just past the outer edge down to the middle of the dial.
-    readonly property real tipOut: rim.cardinalOut
-    readonly property real h: rim.batteryWidth + rim.bandGap + rim.dialWidth / 2 + tipOut
-    readonly property real w: h * 1.25   // wider than tall
-    width: w; height: h
-    x: rim.r - w / 2
-    y: -tipOut
-    preferredRendererType: Shape.CurveRenderer
-    ShapePath {
-      fillColor: Color.foreground
-      strokeColor: Color.background
-      strokeWidth: 1.5 * rim.unit
-      joinStyle: ShapePath.MiterJoin
-      PathPolyline { path: [Qt.point(0, 0), Qt.point(noon.w, 0), Qt.point(noon.w / 2, noon.h), Qt.point(0, 0)] }
+
+    Shape {
+      id: noon
+      // Out of the way while the sun (or the moon) passes over it.
+      readonly property bool covered: {
+        var nx = Math.max(x, Math.min(body.cx, x + width))
+        var ny = Math.max(y, Math.min(body.cy, y + height))
+        return Math.hypot(body.cx - nx, body.cy - ny) < body.br
+      }
+      visible: rim.cardinals && opacity > 0
+      opacity: covered ? 0 : 1
+      Behavior on opacity { NumberAnimation { duration: 300 } }
+      // From just past the outer edge down to the middle of the dial.
+      readonly property real tipOut: rim.cardinalOut
+      readonly property real h: rim.batteryWidth + rim.bandGap + rim.dialWidth / 2 + tipOut
+      readonly property real w: h * 1.25   // wider than tall
+      width: w; height: h
+      x: rim.r - w / 2
+      y: -tipOut
+      preferredRendererType: Shape.CurveRenderer
+      ShapePath {
+        fillColor: Color.foreground
+        strokeColor: Color.background
+        strokeWidth: 1.5 * rim.unit
+        joinStyle: ShapePath.MiterJoin
+        PathPolyline { path: [Qt.point(0, 0), Qt.point(noon.w, 0), Qt.point(noon.w / 2, noon.h), Qt.point(0, 0)] }
+      }
     }
   }
 
@@ -252,45 +270,52 @@ Item {
     }
   }
 
-  // The sun (through civil twilight too), or later the moon in its current
-  // phase, on the current time.
   Item {
-    id: body
-    readonly property real a: rim.timeAngle * Math.PI / 180
-    readonly property real br: width / 2
-    readonly property real cx: x + br
-    readonly property real cy: y + br
-    width: rim.dialWidth + 6 * rim.unit
-    height: width
-    x: rim.r + rim.dialR * Math.sin(a) - width / 2
-    y: rim.r - rim.dialR * Math.cos(a) - height / 2
+    anchors.fill: parent
+    opacity: rim.dialShown
+    scale: dial.scale
+    visible: opacity > 0
 
-    Rectangle {
-      visible: rim.sunShown
-      anchors.fill: parent
-      radius: width / 2
-      color: rim.sunColor
-    }
+    // The sun (through civil twilight too), or later the moon in its current
+    // phase, on the current time.
+    Item {
+      id: body
+      readonly property real a: rim.timeAngle * Math.PI / 180
+      readonly property real br: width / 2
+      readonly property real cx: x + br
+      readonly property real cy: y + br
+      width: rim.dialWidth + 6 * rim.unit
+      height: width
+      x: rim.r + rim.dialR * Math.sin(a) - width / 2
+      y: rim.r - rim.dialR * Math.cos(a) - height / 2
 
-    // The dark side, so a new moon still shows as an outline.
-    Rectangle {
-      visible: !rim.sunShown
-      anchors.fill: parent
-      radius: width / 2
-      color: Color.background
-      border.width: 1
-      border.color: Qt.alpha(Color.foreground, 0.45)
-    }
+      Rectangle {
+        visible: rim.sunShown
+        anchors.fill: parent
+        radius: width / 2
+        color: rim.sunColor
+      }
 
-    // The lit side, between the limb and the terminator.
-    Shape {
-      visible: !rim.sunShown
-      anchors.fill: parent
-      preferredRendererType: Shape.CurveRenderer
-      ShapePath {
-        fillColor: "#ece6cf"
-        strokeColor: "transparent"
-        PathPolyline { path: rim.moon.map(function(p) { return Qt.point(p.x, p.y) }) }
+      // The dark side, so a new moon still shows as an outline.
+      Rectangle {
+        visible: !rim.sunShown
+        anchors.fill: parent
+        radius: width / 2
+        color: Color.background
+        border.width: 1
+        border.color: Qt.alpha(Color.foreground, 0.45)
+      }
+
+      // The lit side, between the limb and the terminator.
+      Shape {
+        visible: !rim.sunShown
+        anchors.fill: parent
+        preferredRendererType: Shape.CurveRenderer
+        ShapePath {
+          fillColor: "#ece6cf"
+          strokeColor: "transparent"
+          PathPolyline { path: rim.moon.map(function(p) { return Qt.point(p.x, p.y) }) }
+        }
       }
     }
   }
@@ -316,6 +341,7 @@ Item {
   // Hovering the day/night dial (the sun or moon on it included).
   MouseArea {
     anchors.fill: parent
+    enabled: rim.dialShown > 0.5
     hoverEnabled: true
     acceptedButtons: Qt.NoButton
     containmentMask: QtObject {

@@ -6,9 +6,10 @@ import qs.Commons
 // Built-in map: Omarchy's notifications, caught from the files the
 // notification daemon keeps for the toasts on screen
 // (~/.local/state/omarchy/notifications/*.json). Each one asks the minimap
-// for a notification: its icon in the middle, its text running once around
-// the inner edge, fading in at noon, clockwise through 3, 6 and 9 (upright
-// at 6), fading out back at noon. Shown one after the other. An urgent one
+// for a notification: its icon large in the middle, its text running once
+// round the rim as the minimap's ticker (the day/night dial and the rim
+// bands step aside meanwhile), fading in at noon, clockwise through 3, 6
+// and 9 (upright at 6), fading out back at noon. Shown one after the other. An urgent one
 // (critical urgency) waits for the user: a persistent notification of the
 // minimap, until clicked or until the daemon closes it.
 Item {
@@ -24,24 +25,14 @@ Item {
   // Nothing to show between notifications: the minimap skips the map then.
   readonly property bool empty: current === null && temps.length === 0 && stack.length === 0
   property var seen: ({})           // file names already taken
-  property real offset: 0           // degrees the text's head has travelled
 
-  // Text along the ring: one monospace cell per character.
-  readonly property real k: minimap.uiScale || 1   // sizes below are for a 210 px minimap
-  readonly property real radius: width / 2 - 12 * k
-  readonly property real step: cell.advanceWidth / Math.max(1, radius) * 180 / Math.PI
-  readonly property var chars: current ? Array.from(current.text) : []
-  readonly property real speed: 120  // degrees per second
-  readonly property real lap: 360 + chars.length * step
-  readonly property int runMs: Math.round(lap / speed * 1000)
-
-  TextMetrics {
-    id: cell
-    font.family: Style.fontFamily
-    font.pixelSize: Math.round(13 * view.k)
-    font.bold: true
-    text: "M"
-  }
+  // The text round the rim (the minimap's ticker, see Ticker.qml). Its
+  // letters stay once it is done, so they fade where they stand.
+  readonly property bool tickerActive: current !== null
+  property var tickerChars: []
+  property real tickerOffset: 0     // degrees the text's head has travelled
+  readonly property real lap: 360 + tickerChars.length * minimap.tickerStep
+  readonly property int runMs: Math.round(lap / Math.max(1, minimap.tickerSpeed) * 1000)
 
   // New files in the directory: a toast just went up.
   Process {
@@ -117,9 +108,10 @@ Item {
     var next = temps.length ? temps[0] : (stack.length ? stack[stack.length - 1] : null)
     if (next === current) return
     current = next
-    offset = 0
     run.stop()
     if (!current) { minimap.dismiss(view); return }
+    tickerChars = Array.from(current.text)
+    tickerOffset = 0
     // The coin turn takes about half a second before this face shows.
     if (!current.persistent) minimap.notify(view, runMs + 700)
     if (onScreen) run.start()
@@ -139,7 +131,7 @@ Item {
   NumberAnimation {
     id: run
     target: view
-    property: "offset"
+    property: "tickerOffset"
     from: 0
     to: view.lap
     duration: view.runMs
@@ -178,12 +170,12 @@ Item {
   Image {
     id: icon
     anchors.centerIn: parent
-    width: parent.width * 0.42
+    width: parent.width * 0.62
     height: width
     visible: status === Image.Ready
     source: view.current ? view.current.icon : ""
-    sourceSize.width: 128
-    sourceSize.height: 128
+    sourceSize.width: 256
+    sourceSize.height: 256
     fillMode: Image.PreserveAspectFit
     asynchronous: true
     smooth: true
@@ -195,27 +187,6 @@ Item {
     text: view.current && view.current.glyph ? view.current.glyph : "\u{F009A}"
     color: Qt.alpha(Color.foreground, view.current ? 0.85 : 0.3)
     font.family: Style.fontFamily
-    font.pixelSize: parent.width * 0.3
-  }
-
-  // The text, letter by letter on the ring, upright towards the outside.
-  Repeater {
-    model: view.chars.length
-    delegate: Text {
-      required property int index
-      // Letters stand with their feet outwards, so the text reads upright
-      // at 6 o'clock, running right to left there like a news ticker: its
-      // first letter leads.
-      readonly property real a: view.offset - index * view.step
-      readonly property real rad: a * Math.PI / 180
-      visible: a > 0 && a < 360
-      opacity: Math.min(1, a / 30, (360 - a) / 30)
-      x: view.width / 2 + view.radius * Math.sin(rad) - width / 2
-      y: view.height / 2 - view.radius * Math.cos(rad) - height / 2
-      rotation: a + 180
-      text: view.chars[index] || ""
-      color: Color.foreground
-      font: cell.font
-    }
+    font.pixelSize: parent.width * 0.45
   }
 }

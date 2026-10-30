@@ -996,6 +996,37 @@ Item {
   // The rim with its bands: where the map starts.
   readonly property int rimWidth: ringWidth + activeRimBands.length * rimBandStep
 
+  // ------------------------------------------------------------- ticker
+  //
+  // A map can run a line of text round the rim (the notifications do).
+  // While the disc shows it, the day/night dial and the rim bands step
+  // aside and the text runs in the room they leave, from the dial's outer
+  // edge to the map's; the battery band and the desks stay in view. The map
+  // says `tickerActive` and exposes `tickerChars` (one string per letter,
+  // kept once it is done so the letters fade where they stand) and
+  // `tickerOffset` (degrees its head has travelled from noon), spacing the
+  // letters by tickerStep and running at tickerSpeed. Ticker.qml draws it.
+  property Item ticker: null
+  readonly property bool rimQuiet: ticker !== null
+  // 1 while the dial and the bands are up, 0 while the ticker has the rim.
+  property real rimShown: rimQuiet ? 0 : 1
+  Behavior on rimShown { NumberAnimation { duration: Style.reduceMotion ? 0 : 320; easing.type: Easing.InOutCubic } }
+  readonly property real tickerOuter: cfg.size / 2 - ringWidth / 2   // inside the battery band and its gap
+  readonly property real tickerInner: cfg.size / 2 - rimWidth
+  readonly property real tickerRadius: (tickerOuter + tickerInner) / 2
+  readonly property real tickerThickness: tickerOuter - tickerInner
+  readonly property font tickerFont: tickerCell.font
+  readonly property real tickerStep: tickerCell.advanceWidth / Math.max(1, tickerRadius) * 180 / Math.PI
+  // Degrees per second: 90 px/s along the ring on a 210 px minimap.
+  readonly property real tickerSpeed: 90 * uiScale / Math.max(1, tickerRadius) * 180 / Math.PI
+  TextMetrics {
+    id: tickerCell
+    font.family: Style.fontFamily
+    font.pixelSize: Math.round(Math.min(14 * root.uiScale, root.tickerThickness * 0.75))
+    font.bold: true
+    text: "M"
+  }
+
   Process {
     id: bandScan
     command: ["python3", "-I", Qt.resolvedUrl("bin/list-maps").toString().replace(/^[a-z]+:\/\//, ""), "bands"]
@@ -1586,6 +1617,12 @@ Item {
               id: mapLoader
               required property var modelData
               readonly property bool band: modelData.id === "workspace"
+              // Running text round the rim while shown (see ticker).
+              readonly property bool ticking: root.shownMap === modelData.id && item !== null && item.tickerActive === true
+              onTickingChanged: {
+                if (ticking) { root.ticker = item; root.dialHovered = false }
+                else if (root.ticker === item) root.ticker = null
+              }
               readonly property real inset: band || !root.hasWorkspaceMap ? 0 : root.bandWidth + root.bandGap
               x: inset; y: inset
               width: content.width - 2 * inset
@@ -1649,7 +1686,7 @@ Item {
           DayFace {
             readonly property real inset: root.hasWorkspaceMap ? root.bandWidth + root.bandGap : 0
             minimap: root
-            shown: root.dialHovered && !root.peeking
+            shown: root.dialHovered && !root.peeking && !root.rimQuiet
             z: 3
             x: inset; y: inset
             width: content.width - 2 * inset
@@ -1719,6 +1756,7 @@ Item {
           sunShown: root.sunShown
           onDialHovered: function(on) { root.dialHovered = on }
           onBatteryHovered: function(on) { root.batteryHovered = on }
+          dialShown: root.rimShown
           battery: root.batteryPercent
           batterySeconds: root.batterySeconds
           batteryAfterSeconds: root.batteryAfterSeconds
@@ -1734,6 +1772,10 @@ Item {
             required property int index
             readonly property real bandRadius: disc.width / 2 - root.ringWidth - index * root.rimBandStep - root.rimBandThickness / 2
             anchors.fill: parent
+            // Steps aside, sinking a little towards the map, for the ticker.
+            opacity: root.rimShown
+            scale: 0.97 + 0.03 * root.rimShown
+            enabled: !root.rimQuiet
             Component.onCompleted: setSource(modelData.url, { minimap: root })
             onLoaded: {
               item.radius = Qt.binding(function() { return bandLoader.bandRadius })
@@ -1743,10 +1785,17 @@ Item {
           }
         }
 
+        // The ticker, over where the dial and the bands were.
+        Ticker {
+          anchors.fill: parent
+          minimap: root
+        }
+
         // Clock, WoW-style, on the bottom of the ring. Hidden in the
         // settings, it still comes up on hover: it opens the map list.
+        // It leaves the ticker's 6 o'clock clear, the map list aside.
         Rectangle {
-          opacity: root.cfg.clock || hover.hovered || mapMenu.open ? 1 : 0
+          opacity: (root.cfg.clock || hover.hovered || mapMenu.open ? 1 : 0) * (mapMenu.open ? 1 : root.rimShown)
           visible: opacity > 0
           Behavior on opacity { NumberAnimation { duration: 150 } }
           anchors.horizontalCenter: parent.horizontalCenter
