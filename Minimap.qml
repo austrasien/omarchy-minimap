@@ -999,18 +999,52 @@ Item {
   // ------------------------------------------------------------- ticker
   //
   // A map can run a line of text round the rim (the notifications do).
-  // While the disc shows it, the day/night dial and the rim bands step
-  // aside and the text runs in the room they leave, from the dial's outer
-  // edge to the map's; the battery band and the desks stay in view. The map
-  // says `tickerActive` and exposes `tickerChars` (one string per letter,
-  // kept once it is done so the letters fade where they stand) and
-  // `tickerOffset` (degrees its head has travelled from noon), spacing the
-  // letters by tickerStep and running at tickerSpeed. Ticker.qml draws it.
+  // While the disc shows it, a radar beam sweeps the rim from noon,
+  // clockwise, erasing the day/night dial and the rim bands as it passes;
+  // the text then runs in the room they leave, from the dial's outer edge
+  // to the map's, the battery band and the desks staying in view. Once it
+  // is done, the beam sweeps round again and draws them back behind it
+  // (Radar.qml). The map says `tickerActive` and exposes `tickerChars` (one
+  // string per letter, kept once it is done so the letters fade where they
+  // stand) and `tickerOffset` (degrees its head has travelled from noon),
+  // spacing the letters by tickerStep and running at tickerSpeed, and
+  // starting only once `tickerReady`. Ticker.qml draws it.
   property Item ticker: null
   readonly property bool rimQuiet: ticker !== null
-  // 1 while the dial and the bands are up, 0 while the ticker has the rim.
-  property real rimShown: rimQuiet ? 0 : 1
-  Behavior on rimShown { NumberAnimation { duration: Style.reduceMotion ? 0 : 320; easing.type: Easing.InOutCubic } }
+  property real rimSweep: 0              // the beam, degrees from noon
+  property string rimSweepMode: ""       // erase | draw | ""
+  property bool rimCleared: false        // the dial and the bands are gone
+  property real rimEraseReached: 360     // where an interrupted erase stopped
+  readonly property bool rimMasked: rimSweepMode !== "" || rimCleared
+  readonly property bool tickerReady: rimQuiet && rimCleared && rimSweepMode === ""
+  readonly property int rimSweepMs: Style.reduceMotion ? 0 : 900
+  onRimQuietChanged: {
+    if (rimQuiet) {
+      if (rimCleared && rimSweepMode === "") return
+      drawSweep.stop()
+      rimSweepMode = "erase"
+      eraseSweep.restart()
+    } else {
+      if (!rimCleared && rimSweepMode === "") return
+      rimEraseReached = rimSweepMode === "erase" ? rimSweep : 360
+      eraseSweep.stop()
+      rimCleared = false
+      rimSweepMode = "draw"
+      drawSweep.restart()
+    }
+  }
+  NumberAnimation {
+    id: eraseSweep
+    target: root; property: "rimSweep"; from: 0; to: 360
+    duration: root.rimSweepMs
+    onFinished: { root.rimCleared = true; root.rimSweepMode = "" }
+  }
+  NumberAnimation {
+    id: drawSweep
+    target: root; property: "rimSweep"; from: 0; to: 360
+    duration: root.rimSweepMs
+    onFinished: { root.rimSweepMode = ""; root.rimEraseReached = 360 }
+  }
   readonly property real tickerOuter: cfg.size / 2 - ringWidth / 2   // inside the battery band and its gap
   readonly property real tickerInner: cfg.size / 2 - rimWidth
   readonly property real tickerRadius: (tickerOuter + tickerInner) / 2
@@ -1760,7 +1794,7 @@ Item {
           sunShown: root.sunShown
           onDialHovered: function(on) { root.dialHovered = on }
           onBatteryHovered: function(on) { root.batteryHovered = on }
-          dialShown: root.rimShown
+          dialMask: root.rimMasked ? radar.mask : null
           battery: root.batteryPercent
           batterySeconds: root.batterySeconds
           batteryAfterSeconds: root.batteryAfterSeconds
@@ -1776,10 +1810,15 @@ Item {
             required property int index
             readonly property real bandRadius: disc.width / 2 - root.ringWidth - index * root.rimBandStep - root.rimBandThickness / 2
             anchors.fill: parent
-            // Steps aside, sinking a little towards the map, for the ticker.
-            opacity: root.rimShown
-            scale: 0.97 + 0.03 * root.rimShown
-            enabled: !root.rimQuiet
+            // Swept away by the radar for the ticker (Radar.qml).
+            enabled: !root.rimMasked
+            layer.enabled: root.rimMasked
+            layer.effect: MultiEffect {
+              maskEnabled: true
+              maskSource: radar.mask
+              maskThresholdMin: 0.5
+              maskSpreadAtMin: 1.0
+            }
             Component.onCompleted: setSource(modelData.url, { minimap: root })
             onLoaded: {
               item.radius = Qt.binding(function() { return bandLoader.bandRadius })
@@ -1789,8 +1828,14 @@ Item {
           }
         }
 
-        // The ticker, over where the dial and the bands were.
+        // The ticker, over where the dial and the bands were, and the
+        // radar sweep that clears the room for it.
         Ticker {
+          anchors.fill: parent
+          minimap: root
+        }
+        Radar {
+          id: radar
           anchors.fill: parent
           minimap: root
         }
@@ -1799,7 +1844,7 @@ Item {
         // settings, it still comes up on hover: it opens the map list.
         // It leaves the ticker's 6 o'clock clear, the map list aside.
         Rectangle {
-          opacity: (root.cfg.clock || hover.hovered || mapMenu.open ? 1 : 0) * (mapMenu.open ? 1 : root.rimShown)
+          opacity: (root.cfg.clock || hover.hovered || mapMenu.open ? 1 : 0) * (mapMenu.open || !root.rimQuiet ? 1 : 0)
           visible: opacity > 0
           Behavior on opacity { NumberAnimation { duration: 150 } }
           anchors.horizontalCenter: parent.horizontalCenter

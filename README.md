@@ -202,9 +202,10 @@ keeps for its toasts (`~/.local/state/omarchy/notifications/`, watched with
 `inotifywait`). Each one is shown as a notification: its icon large in the
 middle (attached image, app icon or desktop entry), its title and body
 running once round the rim, fading in at noon and going clockwise, upright
-at 6 o'clock, until they fade out back at noon. Meanwhile the day/night dial
-and the rim bands step aside (fading, sinking a little) to make room for the
-text; the battery band and the desks stay in view. Several wait their turn; an urgent one (critical urgency, e.g. a
+at 6 o'clock, until they fade out back at noon. First a radar beam sweeps
+the rim from noon, clockwise, erasing the day/night dial and the rim bands
+behind it to make room for the text; once the text is done, it sweeps round
+again and draws them back. The battery band and the desks stay in view. Several wait their turn; an urgent one (critical urgency, e.g. a
 suggestion waiting for "Voir") stays until clicked or closed by the daemon.
 Clicking it while it shows fires the notification's default action, as
 clicking its toast would (through `omarchy-shell notifications invoke <id>`,
@@ -234,11 +235,13 @@ The first band in order sits outermost. Each one gets a switch under its
 name in the settings (`disabledBands` in the config); turned off, it takes no
 room.
 
-While a map runs text round the rim (the notifications do), the bands fade
-out and take no input. A map does that by exposing `tickerActive`,
+While a map runs text round the rim (the notifications do), the bands are
+swept away by a radar beam (`Radar.qml`), take no input, and are drawn back
+the same way after. A map does that by exposing `tickerActive`,
 `tickerChars` (one string per letter) and `tickerOffset` (degrees its head
 has travelled from noon), spacing the letters by `minimap.tickerStep` and
-running at `minimap.tickerSpeed`; `Ticker.qml` draws them.
+running at `minimap.tickerSpeed`, and starting once `minimap.tickerReady`
+(the rim is cleared); `Ticker.qml` draws them.
 
 The entry fills the whole disc and gets `minimap`, then `radius` (the band's
 centre line) and `thickness`, kept up to date as the size changes. It draws

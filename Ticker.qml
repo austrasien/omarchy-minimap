@@ -6,7 +6,7 @@ import qs.Commons
 // letter, feet outwards, so it reads upright at 6 o'clock, running right to
 // left there like a news ticker: its first letter leads. Each letter fades
 // in at noon and out back at noon; closed early (clicked), the letters fade
-// where they stand while the dial and the bands come back.
+// where they stand while the radar draws the dial and the bands back.
 Item {
   id: ticker
 
@@ -17,8 +17,10 @@ Item {
   readonly property real offset: source ? source.tickerOffset : 0
   readonly property real r: Math.min(width, height) / 2
 
-  opacity: 1 - minimap.rimShown
+  // In once the radar has cleared the rim, out as it starts drawing it back.
+  opacity: minimap.tickerReady ? 1 : 0
   visible: opacity > 0
+  Behavior on opacity { NumberAnimation { duration: Style.reduceMotion ? 0 : 250 } }
 
   Connections {
     target: ticker.minimap

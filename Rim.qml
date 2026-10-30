@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Effects
 import QtQuick.Shapes
 import qs.Commons
 import "Model.js" as Model
@@ -22,7 +23,7 @@ Item {
 
   property real ringWidth: 22         // dial + battery band, see below
   property bool cardinals: true      // pilot's bezel, else plain ticks at the quarters too
-  property real dialShown: 1         // 0 while a ticker runs where the dial is
+  property Item dialMask: null       // what stays of the dial while a ticker sweeps it away
   signal batteryClicked()
   signal batteryHovered(bool on)
   signal dialHovered(bool on)
@@ -111,15 +112,19 @@ Item {
     }
   }
 
-  // The dial, its bezel's ticks and noon triangle, the sun or moon: they
-  // fade out, sinking a little towards the map, while a ticker runs where
-  // they were (dialShown 0). E, S and W stay, out on the battery band.
+  // The dial, its bezel's ticks and noon triangle, the sun or moon: masked
+  // by dialMask while the minimap's radar sweeps them away for a ticker.
+  // E, S and W stay, out on the battery band.
   Item {
     id: dial
     anchors.fill: parent
-    opacity: rim.dialShown
-    scale: 0.97 + 0.03 * rim.dialShown
-    visible: opacity > 0
+    layer.enabled: rim.dialMask !== null
+    layer.effect: MultiEffect {
+      maskEnabled: true
+      maskSource: rim.dialMask
+      maskThresholdMin: 0.5
+      maskSpreadAtMin: 1.0
+    }
 
     Shape {
       anchors.fill: parent
@@ -272,9 +277,13 @@ Item {
 
   Item {
     anchors.fill: parent
-    opacity: rim.dialShown
-    scale: dial.scale
-    visible: opacity > 0
+    layer.enabled: rim.dialMask !== null
+    layer.effect: MultiEffect {
+      maskEnabled: true
+      maskSource: rim.dialMask
+      maskThresholdMin: 0.5
+      maskSpreadAtMin: 1.0
+    }
 
     // The sun (through civil twilight too), or later the moon in its current
     // phase, on the current time.
@@ -341,7 +350,7 @@ Item {
   // Hovering the day/night dial (the sun or moon on it included).
   MouseArea {
     anchors.fill: parent
-    enabled: rim.dialShown > 0.5
+    enabled: rim.dialMask === null
     hoverEnabled: true
     acceptedButtons: Qt.NoButton
     containmentMask: QtObject {

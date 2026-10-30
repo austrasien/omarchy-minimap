@@ -18,6 +18,8 @@ Item {
 
   readonly property string dir: minimap.home + "/.local/state/omarchy/notifications"
   readonly property bool onScreen: minimap.shownMap === "notifications"
+  // The text runs once the minimap's radar has cleared the rim.
+  readonly property bool canRun: onScreen && minimap.tickerReady
 
   property var temps: []            // notifications in turn
   property var stack: []            // urgent ones, the latest last
@@ -113,8 +115,9 @@ Item {
     tickerChars = Array.from(current.text)
     tickerOffset = 0
     // The coin turn takes about half a second before this face shows.
-    if (!current.persistent) minimap.notify(view, runMs + 700)
-    if (onScreen) run.start()
+    // Then the radar clears the rim, and draws it back after.
+    if (!current.persistent) minimap.notify(view, runMs + 700 + 2 * minimap.rimSweepMs)
+    if (canRun) run.start()
   }
 
   function settle(test) {
@@ -126,7 +129,7 @@ Item {
     refresh()
   }
 
-  onOnScreenChanged: if (onScreen && current && !run.running) run.start()
+  onCanRunChanged: if (canRun && current && !run.running) run.start()
 
   NumberAnimation {
     id: run
@@ -138,7 +141,7 @@ Item {
     onFinished: {
       if (!view.current) return
       // An urgent one goes round again until settled.
-      if (view.current.persistent) { if (view.onScreen) run.start(); return }
+      if (view.current.persistent) { if (view.canRun) run.start(); return }
       var done = view.current
       view.settle(function(it) { return it === done })
     }
