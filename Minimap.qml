@@ -1017,8 +1017,8 @@ Item {
   readonly property real tickerThickness: tickerOuter - tickerInner
   readonly property font tickerFont: tickerCell.font
   readonly property real tickerStep: tickerCell.advanceWidth / Math.max(1, tickerRadius) * 180 / Math.PI
-  // Degrees per second: 90 px/s along the ring on a 210 px minimap.
-  readonly property real tickerSpeed: 90 * uiScale / Math.max(1, tickerRadius) * 180 / Math.PI
+  // Degrees per second: 140 px/s along the ring on a 210 px minimap.
+  readonly property real tickerSpeed: 140 * uiScale / Math.max(1, tickerRadius) * 180 / Math.PI
   TextMetrics {
     id: tickerCell
     font.family: Style.fontFamily
