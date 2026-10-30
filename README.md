@@ -23,8 +23,10 @@ A round, game-style minimap pinned to a screen corner of the Omarchy shell.
   untouched for a while fade out. Coding agents show the same way on
   their window and on their workspace's arc, no markers: a fast red blink
   when blocked on a permission prompt, a slow theme-accent blink when a turn
-  is done (three quick blinks on the current desk, then cleared once you see it), slow theme-accent rings spreading
-  from the icon (or the arc's middle) for as long as they work. Click a window to focus it.
+  is done (three quick blinks on the current desk, then cleared once you see it), theme-accent rings spreading
+  from the icon (or the arc's middle) for two waves when they start working, then
+  one still ring for as long as they work (a still disc costs no frame). With
+  Hyprland animations off (`Style.reduceMotion`, as in a call) every marker holds still. Click a window to focus it.
   Switching workspace animates: the one you leave shrinks into the arc
   that opens for it on the band (in the theme accent, fading to its own
   colour as the switch ends), while the one you go to grows out of its
