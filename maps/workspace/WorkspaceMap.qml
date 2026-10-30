@@ -254,7 +254,7 @@ Item {
     }
   }
 
-  // On each arc, its apps' icons side by side along the band, centred on
+  // On each arc, one icon per window side by side along the band, centred on
   // the arc; "+n" when they do not all fit. Holding Super swaps them for
   // the desk number, as does a desk whose icons could not be found.
   Repeater {

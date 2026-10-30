@@ -493,6 +493,12 @@ Item {
   property var faviconMap: ({})
   property int faviconMisses: 0
 
+  // Stand-in for a window whose app has no icon.
+  readonly property string genericWindowIcon: {
+    root.revision
+    return iconUrl("application-x-executable") || iconUrl("utilities-terminal")
+  }
+
   function windowIcon(win) {
     if (Model.isBrowserWindow(win.appId)) {
       var fav = faviconMap[win.address]
@@ -778,9 +784,10 @@ Item {
       if (!byId[w.workspace]) byId[w.workspace] = { id: w.workspace, apps: [], addresses: [], icons: [] }
       byId[w.workspace].apps.push(w.appId.split(".").pop())
       byId[w.workspace].addresses.push(w.address)
-      // One icon per app, in window order.
-      var icon = windowIcon(w)
-      if (icon && byId[w.workspace].icons.indexOf(icon) === -1) byId[w.workspace].icons.push(icon)
+      // One icon per window, in window order; a window whose app has no
+      // icon gets the generic one, so every window shows.
+      var icon = windowIcon(w) || genericWindowIcon
+      if (icon) byId[w.workspace].icons.push(icon)
     }
     var list = []
     for (var id in byId) {
