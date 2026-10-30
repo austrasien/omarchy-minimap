@@ -1334,6 +1334,10 @@ Item {
     return false
   }
 
+  // Omarchy's screensaver (a terminal per monitor, in a special workspace)
+  // hides it too: on the overlay layer the minimap would sit on top of it.
+  readonly property bool screensaverUp: allWindows.some(function(w) { return w.appId === "org.omarchy.screensaver" })
+
   // Where the window sits on its screen, to line the wallpaper up with the
   // real one: anchored edges, minus the zones other layers reserve (bar),
   // unless it sits over the bar.
@@ -1515,7 +1519,7 @@ Item {
     screen: root.targetScreen
     // Over the bar it sits on the overlay layer, so it stays on top of
     // fullscreen windows too, games aside.
-    visible: root.shown && root.targetScreen !== null && !root.gameHere
+    visible: root.shown && root.targetScreen !== null && !root.gameHere && !root.screensaverUp
     color: "transparent"
     implicitWidth: root.windowSize
     implicitHeight: root.windowSize
