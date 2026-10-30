@@ -106,9 +106,11 @@ were cut out of that window, and the disc keeps that same distance from the
 screen edges. The window's corner on the minimap's side is masked too, and
 that window's Hyprland border (active colour when it has focus, inactive
 otherwise, same width) is carried around the cut. A video background (OWE)
-plays in the ring too: the same file, decoded muted with QtMultimedia and
-kept on OWE's clock (`owe render-status`), paused while OWE is paused
-(`WallpaperVideo.qml`).
+plays in the ring too, kept on OWE's clock (`owe render-status`) and paused
+while OWE is paused (`WallpaperVideo.qml`): `bin/wallpaper-video-corner` cuts
+the piece under the window once into `~/.cache` (VA-API decode, never above
+the source's resolution), and QtMultimedia decodes only that, muted; the
+whole video plays clipped for the few seconds the cut takes.
 
 Clicking the clock lists the maps to pick from. Right-clicking anywhere on
 the minimap opens its settings (clock, corner, monitor, size, opacity, over the

@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# wallpaper-video-corner <video> <scaled-w> <scaled-h> <x> <y> <w> <h>
+# Prints "dx dy w h path" of an MP4 of the piece of <video> the shell shows:
+# scaled to <scaled-w>x<scaled-h>, then cut at <x>,<y> to <w>x<h> (device
+# pixels, rounded up to even sizes for H.264; dx dy is how far the cut moved
+# to stay inside the frame). Cut once with ffmpeg and kept
+# in ~/.cache, so the shell decodes a few hundred pixels a side instead of
+# the whole video. Same frame rate and duration as the source, so OWE's
+# playback position still applies. Keyed by the video, its mtime and the
+# geometry; the last few are kept.
+set -euo pipefail
+
+src=$1
+shift
+[[ -f $src ]] || exit 1
+sw=$1 sh=$2 cx=$3 cy=$4
+w=$(( ($5 + 1) / 2 * 2 ))
+h=$(( ($6 + 1) / 2 * 2 ))
+# The rounding must not push the cut past the scaled frame.
+x=$(( cx + w > sw ? sw - w : cx ))
+y=$(( cy + h > sh ? sh - h : cy ))
+dir="${XDG_CACHE_HOME:-$HOME/.cache}/austraz-minimap/wallpaper-video"
+mkdir -p "$dir"
+key=$(printf '%s|%s|%s' "$src" "$(stat -c %Y "$src")" "$*" | sha1sum | cut -c1-16)
+out="$dir/$key.mp4"
+if [[ ! -f $out ]]; then
+  # Decode on the GPU when VA-API is there (a 3K clip: ~4 s instead of ~11),
+  # cut in source pixels, then scale only the piece: scaling every whole
+  # frame costs seconds of CPU. Keyframe every second: the shell seeks to
+  # OWE's position.
+  # Never above the source's own resolution: the shell stretches the piece
+  # to <w>x<h> anyway, and upscaling only adds pixels to decode.
+  scale="'if(gt($w,iw),trunc(iw/2)*2,$w)':'if(gt($h,ih),trunc(ih/2)*2,$h)'"
+  cut_piece() {
+    ffmpeg -nostdin -v error -y "$@" -i "$src" -an \
+      -vf "crop=w=$w*iw/$sw:h=$h*ih/$sh:x=$x*iw/$sw:y=$y*ih/$sh:exact=1,scale=$scale:flags=bicubic" \
+      -c:v libx264 -preset veryfast -crf 16 -pix_fmt yuv420p \
+      -force_key_frames "expr:gte(t,n_forced)" \
+      -movflags +faststart "$out.tmp.mp4"
+  }
+  cut_piece -hwaccel vaapi 2>/dev/null || cut_piece
+  mv "$out.tmp.mp4" "$out"
+  ls -t "$dir"/*.mp4 | tail -n +7 | xargs -r rm -f
+fi
+echo "$(( x - cx )) $(( y - cy )) $w $h $out"

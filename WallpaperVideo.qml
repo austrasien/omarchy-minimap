@@ -6,6 +6,8 @@ import Quickshell.Io
 // cannot share its frames while it plays on the desktop (its lock feed
 // replaces the desktop output), so the file is decoded here a second time,
 // muted, and nudged towards OWE's playback position (`owe render-status`).
+// Only the piece under the item is decoded: bin/wallpaper-video-corner cuts
+// it once into ~/.cache; until that is done, the whole video plays clipped.
 Item {
   id: view
   // file:// URL of the video.
@@ -18,20 +20,59 @@ Item {
 
   clip: true
 
+  // The cut piece: its file and where it sits, in device px from the clip.
+  property string piece: ""
+  property rect pieceRect: Qt.rect(0, 0, 0, 0)
+  readonly property string cropKey: active && crop ? [source, crop.sourceSize.width, crop.sourceSize.height,
+    crop.clip.x, crop.clip.y, crop.clip.width, crop.clip.height].join(" ") : ""
+  onCropKeyChanged: {
+    piece = ""
+    cut.start()
+  }
+
+  Process {
+    id: cut
+    property bool again: false
+    function start() {
+      var c = view.crop
+      if (!view.active || !c || view.source === "") return
+      if (running) { again = true; return }
+      command = [Qt.resolvedUrl("bin/wallpaper-video-corner").toString().replace(/^[a-z]+:\/\//, ""),
+        String(view.source).replace(/^file:\/\//, ""),
+        c.sourceSize.width, c.sourceSize.height, c.clip.x, c.clip.y, c.clip.width, c.clip.height].map(String)
+      running = true
+    }
+    stdout: StdioCollector {
+      onStreamFinished: {
+        // A newer cut is queued: this one is stale.
+        if (cut.again) return
+        var m = /^(-?\d+) (-?\d+) (\d+) (\d+) (.+)$/.exec(String(text).trim())
+        if (!m) return
+        view.pieceRect = Qt.rect(Number(m[1]), Number(m[2]), Number(m[3]), Number(m[4]))
+        view.piece = "file://" + m[5]
+      }
+    }
+    onExited: if (again) { again = false; start() }
+  }
+
   MediaPlayer {
     id: player
-    source: view.active ? view.source : ""
+    source: !view.active ? "" : view.piece !== "" ? view.piece : view.source
     loops: MediaPlayer.Infinite
     videoOutput: output
-    onSourceChanged: if (source == "") playbackRate = 1
+    onSourceChanged: {
+      playbackRate = 1
+      view.synced = false
+    }
   }
 
   VideoOutput {
     id: output
-    x: view.crop ? -view.crop.clip.x / view.dpr : 0
-    y: view.crop ? -view.crop.clip.y / view.dpr : 0
-    width: view.crop ? view.crop.sourceSize.width / view.dpr : 0
-    height: view.crop ? view.crop.sourceSize.height / view.dpr : 0
+    readonly property bool cut: view.piece !== ""
+    x: cut ? view.pieceRect.x / view.dpr : view.crop ? -view.crop.clip.x / view.dpr : 0
+    y: cut ? view.pieceRect.y / view.dpr : view.crop ? -view.crop.clip.y / view.dpr : 0
+    width: cut ? view.pieceRect.width / view.dpr : view.crop ? view.crop.sourceSize.width / view.dpr : 0
+    height: cut ? view.pieceRect.height / view.dpr : view.crop ? view.crop.sourceSize.height / view.dpr : 0
     fillMode: VideoOutput.Stretch
   }
 
