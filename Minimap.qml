@@ -316,6 +316,8 @@ Item {
       // moves; fall back to the Wayland activated flag like Spaces does.
       focused: Hyprland.activeToplevel ? Hyprland.activeToplevel === tl : !!(tl.wayland && tl.wayland.activated),
       floating: ipc.floating === true,
+      fullscreen: Number(ipc.fullscreen) || 0,
+      contentType: String(ipc.contentType || ""),
       at: ipc.at && ipc.at.length === 2 ? ipc.at : null,
       size: ipc.size && ipc.size.length === 2 ? ipc.size : null,
       pid: Number(ipc.pid) || 0,
@@ -1292,14 +1294,13 @@ Item {
     onRunningChanged: if (running && !wallpaperInfo.running) wallpaperInfo.running = true
   }
 
-  // Over the bar the minimap lives on the overlay layer, which also covers
-  // fullscreen windows: it steps aside while the workspace has one.
-  readonly property bool fullscreenHere: {
-    root.revision
-    var ws = Hyprland.focusedWorkspace
-    if (!ws) return false
-    if (ws.hasFullscreen !== undefined) return ws.hasFullscreen
-    return !!(ws.lastIpcObject && ws.lastIpcObject.hasfullscreen)
+  // A game in fullscreen on the current desk hides the minimap (see
+  // Model.hidesMinimap); other fullscreen windows keep it on top.
+  readonly property bool gameHere: {
+    var wins = allWindows
+    for (var i = 0; i < wins.length; i++)
+      if (wins[i].workspace === currentWorkspace && Model.hidesMinimap(wins[i], cfg.hideFullscreen)) return true
+    return false
   }
 
   // Where the window sits on its screen, to line the wallpaper up with the
@@ -1481,7 +1482,9 @@ Item {
   PanelWindow {
     id: win
     screen: root.targetScreen
-    visible: root.shown && root.targetScreen !== null && !(root.cfg.overBar && root.fullscreenHere)
+    // Over the bar it sits on the overlay layer, so it stays on top of
+    // fullscreen windows too, games aside.
+    visible: root.shown && root.targetScreen !== null && !root.gameHere
     color: "transparent"
     implicitWidth: root.windowSize
     implicitHeight: root.windowSize

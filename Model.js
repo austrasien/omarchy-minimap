@@ -54,8 +54,22 @@ function normalizeConfig(raw) {
     monitor: c.monitor ? String(c.monitor) : "",
     basemap: c.basemap === "light" || c.basemap === "dark" ? c.basemap : "auto",
     // Rim bands turned off in the settings (bands/<id>); the others show.
-    disabledBands: Array.isArray(c.disabledBands) ? c.disabledBands.map(String) : []
+    disabledBands: Array.isArray(c.disabledBands) ? c.disabledBands.map(String) : [],
+    // Window class patterns (regexes) the minimap hides over in fullscreen,
+    // on top of the windows that tell Hyprland they are games.
+    hideFullscreen: Array.isArray(c.hideFullscreen) ? c.hideFullscreen.map(String) : []
   }
+}
+
+// Whether a window makes the minimap step aside: fullscreen (not merely
+// maximized) and either a game by its content type or a class in `patterns`.
+function hidesMinimap(win, patterns) {
+  if (!win || (win.fullscreen || 0) < 2) return false
+  if (win.contentType === "game") return true
+  for (var i = 0; i < patterns.length; i++) {
+    try { if (new RegExp(patterns[i]).test(win.appId)) return true } catch (e) {}
+  }
+  return false
 }
 
 // weather.json is owned by omarchy-weather-location: {name, latitude, longitude}.
@@ -845,6 +859,7 @@ function wallpaperCrop(imageW, imageH, screenW, screenH, dpr, rect) {
 if (typeof module !== "undefined") {
   module.exports = {
     normalizeConfig: normalizeConfig,
+    hidesMinimap: hidesMinimap,
     parseLocation: parseLocation,
     nextMap: nextMap,
     rainStart: rainStart,

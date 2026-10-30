@@ -284,8 +284,11 @@ and IPC write back to it.
 `margin`: distance from the disc to the screen edges; `-1` (default) uses
 Hyprland's `gaps_out`. `cutout`: `false` drops the wallpaper ring.
 `overBar`: `true` puts the minimap in the screen corner over the bar (overlay
-layer, ignoring the zone the bar reserves); it then hides while the
-workspace has a fullscreen window.
+layer, ignoring the zone the bar reserves); it then stays on top of
+fullscreen windows too.
+`hideFullscreen`: window class patterns (regexes, e.g. `"^steam_app_"`) the
+minimap hides over while they are fullscreen on the current desk. Windows
+that tell Hyprland their content is a game hide it as well.
 `autoCompact`: `true` renumbers the workspaces 1..n whenever a gap appears
 (a desk emptied, a window moved away): occupied desks keep their order,
 persistent ones keep their id, an empty desk still on screen goes last.

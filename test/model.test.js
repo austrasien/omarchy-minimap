@@ -103,3 +103,14 @@ test("sunTimes: Paris on 27 Oct 2026 (CET)", () => {
   assert.equal(polar.sunrise, 0)
   assert.equal(polar.sunset, 0)
 })
+
+test("hidesMinimap: fullscreen games and listed classes only", () => {
+  const game = { appId: "x", fullscreen: 2, contentType: "game" }
+  assert.equal(Model.hidesMinimap(game, []), true)
+  assert.equal(Model.hidesMinimap({ ...game, fullscreen: 1 }, []), false)
+  const steam = { appId: "steam_app_1091500", fullscreen: 2, contentType: "none" }
+  assert.equal(Model.hidesMinimap(steam, ["^steam_app_"]), true)
+  assert.equal(Model.hidesMinimap(steam, ["("]), false)
+  assert.equal(Model.hidesMinimap({ appId: "brave", fullscreen: 2 }, ["^steam_app_"]), false)
+  assert.deepEqual(Model.normalizeConfig({}).hideFullscreen, [])
+})
