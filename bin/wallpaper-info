@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 # Prints "width height path" for Omarchy's current background; width and
-# height are 0 0 when the image cannot be read.
+# height are 0 0 when the image or video cannot be read.
 path=$(readlink -f "$HOME/.local/state/omarchy/current/background") || exit 0
 [[ -f $path ]] || exit 0
-size=$(magick identify -ping -format '%w %h' "$path[0]" 2>/dev/null) || size="0 0"
+case ${path,,} in
+  *.mp4 | *.webm | *.mkv | *.mov | *.m4v)
+    size=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "$path" 2>/dev/null | tr , ' ') || size="0 0" ;;
+  *)
+    size=$(magick identify -ping -format '%w %h' "$path[0]" 2>/dev/null) || size="0 0" ;;
+esac
 echo "${size:-0 0} $path"

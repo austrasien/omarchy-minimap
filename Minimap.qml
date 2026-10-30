@@ -1261,6 +1261,8 @@ Item {
   // background switches repoint (ln -nsf: deleted, then created again).
   // bin/wallpaper-info gives "width height path", read again on each change.
   property size wallpaperSize: Qt.size(0, 0)
+  // OWE plays these on the desktop; the ring plays them too (WallpaperVideo.qml).
+  readonly property bool wallpaperIsVideo: /\.(mp4|webm|mkv|mov|m4v)$/i.test(wallpaper)
   Process {
     id: wallpaperInfo
     command: [Qt.resolvedUrl("bin/wallpaper-info").toString().replace(/^[a-z]+:\/\//, "")]

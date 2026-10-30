@@ -32,7 +32,7 @@ Item {
     readonly property string cropKey: crop ? [minimap.wallpaper, crop.sourceSize.width, crop.sourceSize.height,
       crop.clip.x, crop.clip.y, crop.clip.width, crop.clip.height].join(" ") : ""
     property string piece: ""
-    onCropKeyChanged: cut.start()
+    onCropKeyChanged: if (!minimap.wallpaperIsVideo) cut.start()
 
     Process {
       id: cut
@@ -51,11 +51,21 @@ Item {
     }
 
     Image {
+      visible: !minimap.wallpaperIsVideo
       anchors.fill: parent
-      source: cutout.piece
+      source: visible ? cutout.piece : ""
       asynchronous: true
       cache: false
       smooth: true
+    }
+
+    // A video background plays here too, on OWE's clock (WallpaperVideo.qml).
+    WallpaperVideo {
+      anchors.fill: parent
+      active: cutout.visible && minimap.wallpaperIsVideo
+      source: active ? minimap.wallpaper : ""
+      crop: cutout.crop
+      dpr: minimap.targetScreen ? minimap.targetScreen.devicePixelRatio : 1
     }
   }
 
