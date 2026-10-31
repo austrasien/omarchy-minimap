@@ -701,6 +701,26 @@ Item {
     onTriggered: Quickshell.execDetached([Qt.resolvedUrl("bin/alert-leds").toString().replace(/^[a-z]+:\/\//, ""), root.ledMode])
   }
 
+  // At least one agent working or waiting with a window on a desk, in view
+  // or not. Written as "1" or "0" to a runtime file so outside tools (a
+  // side LED daemon, say) can follow it without IPC.
+  readonly property bool agentsLive: {
+    root.revision
+    for (var k in agents) {
+      var agent = agents[k]
+      if (agent && Model.AGENT_LIVE_STATES[agent.state] && deskForAgent(agent)) return true
+    }
+    return false
+  }
+  onAgentsLiveChanged: agentsLiveFile.setText(agentsLive ? "1\n" : "0\n")
+  FileView {
+    id: agentsLiveFile
+    path: root.runtimeDir + "/austraz-minimap-agents-live"
+    printErrors: false
+    atomicWrites: true
+    Component.onCompleted: setText(root.agentsLive ? "1\n" : "0\n")
+  }
+
   // Workspace numbers while Super is held (bound like Spaces' showNumbers).
   property bool numbersShown: false
 
