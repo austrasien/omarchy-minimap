@@ -60,19 +60,13 @@ Item {
   // On battery the stripe runs from green (100 %) to red (0 %) and blinks
   // under 10 %; charging it is orange; the runtime a charge would give is green.
   readonly property bool batteryLow: rim.batteryMode === "discharging" && rim.battery >= 0 && rim.battery < 10
-  property real blink: 1
+  Cadence { id: blinkClock; active: rim.batteryLow && rim.visible; duration: 1000 }
+  readonly property real blink: blinkClock.blink(0.15)
   readonly property color batteryColor: rim.batteryMode === "charging" ? "#ff9f43"
     : rim.batteryMode === "discharging" && rim.battery >= 0
       ? Qt.hsla(Math.min(rim.battery, 100) / 100 / 3, 0.75, 0.5, rim.batteryLow ? rim.blink : 1)
       : Qt.alpha(Color.foreground, 0.85)
 
-  SequentialAnimation on blink {
-    running: rim.batteryLow && rim.visible
-    loops: Animation.Infinite
-    onRunningChanged: if (!running) rim.blink = 1
-    NumberAnimation { to: 0.15; duration: 500; easing.type: Easing.InOutSine }
-    NumberAnimation { to: 1; duration: 500; easing.type: Easing.InOutSine }
-  }
   readonly property color runtimeColor: "#7fd88f"
   readonly property real batteryEnd: timeAngle + Model.batterySweep(batterySeconds)
 

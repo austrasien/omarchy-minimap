@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Effects
 import QtQuick.Shapes
 import qs.Commons
+import "../.."
 import "../../Model.js" as Model
 
 // The current workspace stretched onto the disc (one window fills it, two
@@ -10,8 +11,8 @@ import "../../Model.js" as Model
 // its app icon in the middle of its visible part. Agents show the same way
 // on their window and on their workspace's arc: a fast red blink when
 // blocked on a permission prompt, a slow theme-accent blink when a turn is
-// done, theme-accent rings spreading when they start working, then one still
-// ring for as long as they work. The current workspace is only the disc; while you switch, the
+// done, theme-accent rings spreading when they start working, then stepping
+// outwards for as long as they work. The current workspace is only the disc; while you switch, the
 // arc you are heading to closes in the theme accent.
 Item {
   id: map
@@ -69,71 +70,52 @@ Item {
     return Model.arcAt(map.arcs, Model.pointAngle(map.dragPoint.x, map.dragPoint.y, width))
   }
 
-  // Shared blink clocks so every marker of a kind pulses in step. Each runs
-  // only while something shows it: a running animation redraws the disc on
-  // every frame.
+  // Shared clocks so every marker of a kind pulses in step. Each runs only
+  // while something shows it, smoothly for a few cycles when it appears,
+  // then in steps (Cadence.qml): a smooth loop redraws the disc on every
+  // frame. With reduced motion (Hyprland animations off, as in a call)
+  // every marker holds still at full strength.
   readonly property var shownStates: {
     var s = ({})
     for (var a in map.markers) s[map.markers[a]] = true
     for (var i = 0; i < map.arcs.length; i++) if (map.arcs[i].state) s[map.arcs[i].state] = true
     return s
   }
-  // With reduced motion (Hyprland animations off, as in a call) every marker
-  // holds still at full strength.
   readonly property bool animate: map.visible && !Style.reduceMotion
-  property real slowPulse: 1
-  property real fastPulse: 1
-  // A turn finished on the current desk: three quick accent blinks.
-  property real donePulse: 1
-  SequentialAnimation on donePulse {
-    running: map.animate && !!map.shownStates.done
-    loops: Animation.Infinite
-    onRunningChanged: if (!running) map.donePulse = 1
-    NumberAnimation { from: 1; to: 0.2; duration: 350; easing.type: Easing.InOutSine }
-    NumberAnimation { from: 0.2; to: 1; duration: 350; easing.type: Easing.InOutSine }
-  }
-  SequentialAnimation on slowPulse {
-    running: map.animate && !!map.shownStates.done
-    loops: Animation.Infinite
-    onRunningChanged: if (!running) map.slowPulse = 1
-    NumberAnimation { from: 1; to: 0.2; duration: 1200; easing.type: Easing.InOutSine }
-    NumberAnimation { from: 0.2; to: 1; duration: 1200; easing.type: Easing.InOutSine }
-  }
-  SequentialAnimation on fastPulse {
-    running: map.animate && !!map.shownStates.waiting
-    loops: Animation.Infinite
-    onRunningChanged: if (!running) map.fastPulse = 1
-    NumberAnimation { from: 1; to: 0.15; duration: 250 }
-    NumberAnimation { from: 0.15; to: 1; duration: 250 }
-  }
+  // A turn finished: quick accent blinks on the window, slow ones on arcs.
+  Cadence { id: doneClock; active: map.animate && !!map.shownStates.done; duration: 700 }
+  Cadence { id: slowClock; active: doneClock.active; duration: 2400 }
+  Cadence { id: fastClock; active: map.animate && !!map.shownStates.waiting; duration: 500 }
+  readonly property real donePulse: doneClock.blink(0.2)
+  readonly property real slowPulse: slowClock.blink(0.2)
+  readonly property real fastPulse: fastClock.blink(0.15)
 
   // Shared clock for the working rings: tiles are rebuilt on every terrain
   // refresh, so a per-tile animation would restart and jump back. The rings
-  // spread for two waves when an agent starts working, then hold at rest:
-  // at 0.5 one ring stands mid-way and the other is gone, a still mark that
-  // costs no frame for as long as the agent works.
+  // spread smoothly for two waves when an agent starts working, then move
+  // on in four steps per wave for as long as one works.
   readonly property real rippleRest: 0.5
-  property real ripplePhase: rippleRest
-  NumberAnimation on ripplePhase {
-    id: rippleWaves
-    running: false
-    from: map.rippleRest; to: map.rippleRest + 2
-    duration: 9000
-    onStopped: map.ripplePhase = map.rippleRest
-  }
+  readonly property real ripplePhase: rippleRest + rippleClock.phase
   readonly property var workingKeys: {
     var keys = []
     for (var a in map.markers) if (map.markers[a] === "working") keys.push(a)
     for (var i = 0; i < map.arcs.length; i++) if (map.arcs[i].state === "working") keys.push("desk " + map.arcs[i].id)
     return keys
   }
+  Cadence {
+    id: rippleClock
+    active: map.animate && map.workingKeys.length > 0
+    duration: 4500
+    smoothCycles: 2
+    steps: 4
+  }
   property var lastWorkingKeys: []
   onWorkingKeysChanged: {
     var started = map.workingKeys.some(function(k) { return map.lastWorkingKeys.indexOf(k) < 0 })
     map.lastWorkingKeys = map.workingKeys
-    if (started && map.animate) rippleWaves.restart()
+    // A newcomer replays the smooth waves; the first one starts them anyway.
+    if (started && rippleClock.active) rippleClock.restart()
   }
-  onAnimateChanged: if (!map.animate) rippleWaves.stop()
 
   function markerColor(state) {
     return state === "waiting" ? Color.urgent : Color.accent
@@ -411,7 +393,7 @@ Item {
         // Agent state, the same as on the arcs: blocked = fast red blink,
         // done = slow accent blink, working = accent rings spreading from the
         // app icon over the whole disc when it starts (so the rings of two
-        // working windows cross), then one still ring while it works.
+        // working windows cross), then stepping on while it works.
         Shape {
           visible: tile.marker === "waiting" || tile.marker === "done"
           x: -tile.x; y: -tile.y

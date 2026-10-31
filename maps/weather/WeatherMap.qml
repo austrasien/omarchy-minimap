@@ -1,5 +1,6 @@
 import QtQuick
 import qs.Commons
+import "../.."
 import "../../Model.js" as Model
 
 // Weather radar: Esri basemap, RainViewer reflectivity, Esri labels on
@@ -156,18 +157,14 @@ Item {
       border.width: 2 * map.uiScale
       border.color: Color.accent
       // Only while the weather map is on screen: every map stays loaded.
-      SequentialAnimation on scale {
-        running: pulse.visible
-        loops: Animation.Infinite
-        NumberAnimation { from: 1; to: 2.6; duration: 1600; easing.type: Easing.OutCubic }
-        PauseAnimation { duration: 600 }
+      // Each cycle the ring widens and fades over 1600 ms, then rests 600.
+      Cadence { id: pulseClock; active: pulse.visible; duration: 2200; steps: 4 }
+      readonly property real spread: {
+        var u = Math.min(1, pulseClock.phase * 2200 / 1600)
+        return 1 - Math.pow(1 - u, 3)
       }
-      SequentialAnimation on opacity {
-        running: pulse.visible
-        loops: Animation.Infinite
-        NumberAnimation { from: 0.9; to: 0; duration: 1600; easing.type: Easing.OutCubic }
-        PauseAnimation { duration: 600 }
-      }
+      scale: 1 + 1.6 * spread
+      opacity: 0.9 * (1 - spread)
     }
 
     Rectangle {
