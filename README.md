@@ -293,7 +293,8 @@ and IPC write back to it.
 ```
 
 `margin`: distance from the disc to the screen edges; `-1` (default) uses
-Hyprland's `gaps_out`. `cutout`: `false` drops the wallpaper ring.
+Hyprland's `gaps_out`. `cutout`: `false` drops the wallpaper ring; it is also
+dropped while `opacity` is under 1, so the window under the see-through disc shows.
 `overBar`: `true` puts the minimap in the screen corner over the bar (overlay
 layer, ignoring the zone the bar reserves); it then stays on top of
 fullscreen windows too.

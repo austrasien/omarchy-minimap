@@ -1303,7 +1303,10 @@ Item {
   property color activeBorder: "#7aa2f7"
   property color inactiveBorder: "#aa595959"
   property string wallpaper: ""
-  readonly property int ring: cfg.cutout ? gapsOut : 0
+  // A see-through disc (opacity under 100 %) shows the window under it, so
+  // it is not cut out of that window then.
+  readonly property bool cutoutOn: cfg.cutout && cfg.opacity >= 1
+  readonly property int ring: cutoutOn ? gapsOut : 0
   readonly property int discMargin: cfg.margin < 0 ? gapsOut : cfg.margin
   readonly property int windowMargin: Math.max(0, discMargin - ring)
   // Radius of the cut: the disc plus the wallpaper ring. The window's
@@ -1383,7 +1386,7 @@ Item {
     }
   }
   Process {
-    running: root.shown && root.cfg.cutout
+    running: root.shown && root.cutoutOn
     command: ["inotifywait", "-m", "-q", "-e", "create", "-e", "moved_to", "--format", "%f",
       root.home + "/.local/state/omarchy/current"]
     stdout: SplitParser {

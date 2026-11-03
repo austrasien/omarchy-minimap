@@ -215,7 +215,17 @@ Column {
     ToggleSwitch {
       id: cutout
       checked: settings.cfg.cutout
+      // Below 100 % opacity the disc is never cut out (Minimap.qml, cutoutOn).
+      opacity: settings.cfg.opacity < 1 ? 0.4 : 1
       onToggled: settings.save({ cutout: !settings.cfg.cutout })
+    }
+    Text {
+      visible: settings.cfg.opacity < 1
+      anchors.verticalCenter: parent.verticalCenter
+      text: "inactive sous 100 % d'opacité"
+      color: Qt.alpha(Color.popups.text, 0.5)
+      font.family: Style.font.family
+      font.pixelSize: Style.font.caption
     }
   }
 
