@@ -328,9 +328,22 @@ Item {
 
   readonly property var allWindows: {
     root.revision
+    // Quickshell can keep a toplevel after its window is gone from the
+    // desks (an app that hides to the background, like Obsidian, keeps its
+    // process running): skip unmapped windows and windows whose workspace no
+    // longer exists, or a ghost desk shows with the app's icon.
+    var live = ({})
+    var spaces = Hyprland.workspaces.values
+    for (var s = 0; s < spaces.length; s++) live[spaces[s].id] = true
     var out = []
     var values = Hyprland.toplevels.values
-    for (var i = 0; i < values.length; i++) out.push(ipcWindow(values[i]))
+    for (var i = 0; i < values.length; i++) {
+      var ipc = values[i].lastIpcObject || {}
+      if (ipc.mapped === false) continue
+      var w = ipcWindow(values[i])
+      if (spaces.length && w.workspace !== 0 && !live[w.workspace]) continue
+      out.push(w)
+    }
     return out
   }
 
