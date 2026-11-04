@@ -213,6 +213,10 @@ suggestion waiting for "Voir") stays until clicked or closed by the daemon.
 Clicking it while it shows fires the notification's default action, as
 clicking its toast would (through `omarchy-shell notifications invoke <id>`,
 provided by the `austraz.notifications` clone).
+Right-clicking it only dismisses it, without the action (through
+`omarchy-shell notifications dismissId <id>`, same clone): the icon winds
+up, collapses into a bright point and bursts into a shockwave and sparks,
+while the text round the rim is blown outwards letter by letter.
 With `hideToasts` (on by default) a notification daemon that reads
 `minimap.json`, such as the `austraz.notifications` clone, keeps its own
 toasts hidden: the minimap shows them instead.
@@ -335,6 +339,7 @@ omarchy-shell austraz.minimap radar         # weather map as a notification, end
 omarchy-shell austraz.minimap osd '{"iconKey":"volume","icon":"","value":130,"maxValue":200,"hasProgress":true,"message":"130%"}'  # "ok" when shown
 omarchy-shell austraz.minimap dictation     # "ok" while the disc can show dictation
 omarchy-shell austraz.minimap demo prometheus legendary  # a map's own demo, if it has one
+omarchy-shell austraz.minimap demo notifications dismiss  # the right-click on the notification shown
 omarchy-shell austraz.minimap map workspace  # any map id
 omarchy-shell austraz.minimap corner top-left
 omarchy-shell austraz.minimap zoomIn
