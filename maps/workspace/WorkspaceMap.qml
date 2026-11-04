@@ -174,11 +174,22 @@ Item {
     id: band
     anchors.fill: parent
     layer.enabled: map.reflowing
+    // A soft breath: the band swells a little as it blurs, glowing in the
+    // accent, then settles back as the arcs snap into place.
+    scale: 1 + 0.035 * map.reflowBlur
     layer.effect: MultiEffect {
       blurEnabled: true
       blur: map.reflowBlur
-      blurMax: Math.round(24 * map.uiScale)
-      saturation: 0.25 * map.reflowBlur
+      blurMax: Math.round(32 * map.uiScale)
+      saturation: 0.4 * map.reflowBlur
+      brightness: 0.12 * map.reflowBlur
+      shadowEnabled: true
+      shadowColor: Color.accent
+      shadowBlur: 1
+      shadowOpacity: 0.9 * map.reflowBlur
+      shadowHorizontalOffset: 0
+      shadowVerticalOffset: 0
+      shadowScale: 1 + 0.04 * map.reflowBlur
     }
 
     // The repeaters are keyed by workspace id so the switch animation only
@@ -538,7 +549,7 @@ Item {
   readonly property real bandR: map.width / 2 - map.bandWidth / 2
   readonly property real dotScale: map.bandWidth / (map.width - 2 * map.inset)
   readonly property var shownArcs: map.switching ? Model.blendArcs(map.fromArcs, map.arcs, map.t)
-    : map.reflowing ? Model.blendArcs(map.reflowFrom, map.arcs, map.rt) : map.arcs
+    : map.reflowing ? Model.blendArcs(map.reflowFrom, map.arcs, map.reflowPos) : map.arcs
   // Each disc rides the middle of its own arc as that arc opens or closes.
   readonly property real leavingAngle: map.arcAngle(map.shownArcs, map.leavingId, map.arcAngle(map.arcs, map.leavingId, 0))
   readonly property real arrivingAngle: map.arcAngle(map.shownArcs, map.arrivingId, map.arcAngle(map.fromArcs, map.arrivingId, map.leavingAngle + 180))
@@ -572,13 +583,19 @@ Item {
   property var reflowFrom: []
   property real rt: 1               // 0 → 1 over the reflow
   readonly property bool reflowing: rt < 1
-  readonly property real reflowBlur: Math.sin(Math.PI * map.rt)
+  // Blur and glow rise fast and fade slowly; the arcs travel on a springy
+  // curve that runs a little past their place and comes back.
+  readonly property real reflowBlur: Math.pow(Math.sin(Math.PI * Math.pow(map.rt, 0.6)), 1.3)
+  readonly property real reflowPos: {
+    var c1 = 1.4, c3 = c1 + 1, u = map.rt - 1   // ease-out-back
+    return 1 + c3 * u * u * u + c1 * u * u
+  }
   function arcKey(arcs) { return arcs.map(function(a) { return a.id }).join(",") }
   function startReflow(previous) {
     if (map.switching || !map.visible || previous.length === 0) return
     if (map.arcKey(previous) === map.arcKey(map.arcs)) return
     // Mid-reflow: start again from where the arcs are now.
-    var from = map.reflowing ? Model.blendArcs(map.reflowFrom, previous, map.rt) : previous
+    var from = map.reflowing ? Model.blendArcs(map.reflowFrom, previous, map.reflowPos) : previous
     if (Style.reduceMotion) { reflowAnim.stop(); map.rt = 1; return }
     map.reflowFrom = from
     reflowAnim.restart()
@@ -588,8 +605,8 @@ Item {
     target: map
     property: "rt"
     from: 0; to: 1
-    duration: 520
-    easing.type: Easing.InOutCubic
+    duration: 780
+    easing.type: Easing.Linear
   }
 
   onTerrainChanged: {

@@ -604,6 +604,7 @@ function blendArcs(from, to, t) {
       sweep = g.sweep * t
       start = g.mid - sweep / 2
     }
+    sweep = Math.max(0, sweep)   // t may overshoot 1 (springy easing)
     var src = g || f
     out.push({ id: src.id, current: src.current, state: src.state, apps: src.apps, icons: src.icons || [], count: src.count,
       arriving: !!f && !g, leaving: !f && !!g, start: (start % 360 + 360) % 360, sweep: sweep, mid: ((start + sweep / 2) % 360 + 360) % 360 })
