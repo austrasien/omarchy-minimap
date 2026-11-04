@@ -155,15 +155,19 @@ Item {
   // Clicking acts like clicking its toast (hidden by hideToasts): the
   // notification's default action, e.g. opening what it announces. It
   // closes the notification, temporary or urgent; the next one in turn
-  // shows, else the minimap goes back to the chosen map.
+  // shows, else the minimap goes back to the chosen map. A right-click
+  // only dismisses it, without its action (and without opening the
+  // minimap's settings, which a right-click does elsewhere on the disc).
   Process { id: invoker }
   MouseArea {
     anchors.fill: parent
     enabled: view.current !== null && view.onScreen
+    acceptedButtons: Qt.LeftButton | Qt.RightButton
     cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-    onClicked: {
+    onClicked: function(mouse) {
       var done = view.current
-      invoker.command = ["omarchy-shell", "notifications", "invoke", done.id]
+      var verb = mouse.button === Qt.RightButton ? "dismissId" : "invoke"
+      invoker.command = ["omarchy-shell", "notifications", verb, done.id]
       invoker.running = true
       view.settle(function(it) { return it === done })
     }
