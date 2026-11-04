@@ -15,6 +15,9 @@ Item {
   property Item source: null
   readonly property var chars: source && source.tickerChars ? source.tickerChars : []
   readonly property real offset: source ? source.tickerOffset : 0
+  // 0 → 1 while the map blows its text away (a dismissed notification):
+  // each letter flies outwards, spinning, from the head of the text on.
+  readonly property real burst: source && source.tickerBurst ? source.tickerBurst : 0
   readonly property real r: Math.min(width, height) / 2
 
   // In once the radar has cleared the rim, out as it starts drawing it back.
@@ -33,11 +36,15 @@ Item {
       required property int index
       readonly property real a: ticker.offset - index * ticker.minimap.tickerStep
       readonly property real rad: a * Math.PI / 180
-      visible: a > 0 && a < 360
-      opacity: Math.min(1, a / 30, (360 - a) / 30)
-      x: ticker.r + ticker.minimap.tickerRadius * Math.sin(rad) - width / 2
-      y: ticker.r - ticker.minimap.tickerRadius * Math.cos(rad) - height / 2
-      rotation: a + 180
+      readonly property real t: ticker.burst <= 0 ? 0
+        : Math.max(0, Math.min(1, ticker.burst * 1.8 - 0.8 * index / Math.max(1, ticker.chars.length)))
+      readonly property real fly: ticker.minimap.tickerRadius + t * t * 34 * ticker.minimap.uiScale
+      visible: a > 0 && a < 360 && t < 1
+      opacity: Math.min(1, a / 30, (360 - a) / 30) * (1 - t)
+      scale: 1 + 0.8 * t
+      x: ticker.r + fly * Math.sin(rad) - width / 2
+      y: ticker.r - fly * Math.cos(rad) - height / 2
+      rotation: a + 180 + t * (index % 2 ? 140 : -140)
       text: ticker.chars[index] || ""
       color: Color.foreground
       font: ticker.minimap.tickerFont
