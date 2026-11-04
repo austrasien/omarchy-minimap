@@ -31,6 +31,9 @@ A round, game-style minimap pinned to a screen corner of the Omarchy shell.
   that opens for it on the band (in the theme accent, fading to its own
   colour as the switch ends), while the one you go to grows out of its
   arc, which closes in the theme accent; the other arcs slide into place.
+  When the desks reflow without a switch (a desk appears or empties), the
+  band melts into a blur with an accent glow and a soft breath while the
+  arcs glide, overshoot a little and land in their new places.
 - **Rim details on hover**: the rim explains itself in the middle circle,
   over the map without turning it, gone when the pointer leaves.
   - The day/night dial: the sun's path as a wide arch from eight o'clock
