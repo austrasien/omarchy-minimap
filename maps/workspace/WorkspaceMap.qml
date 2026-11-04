@@ -167,180 +167,196 @@ Item {
     onArcChanged: map.hoverWorkspace(arc ? arc.id : 0)
   }
 
-  // The repeaters are keyed by workspace id so the switch animation only
-  // moves arcs; it never rebuilds them frame by frame.
-  Repeater {
-    model: map.arcIds
-    delegate: Shape {
-      id: arcShape
-      required property var modelData
-      readonly property var arc: map.arcFor(modelData)
-      anchors.fill: parent
-      visible: arc !== null
-      opacity: !arc ? 0 : (arc.leaving ? 1 + (map.pulseFor(arc.state) - 1) * map.settle : map.pulseFor(arc.state))
-      preferredRendererType: Shape.CurveRenderer
-      ShapePath {
-        strokeColor: !arcShape.arc ? "transparent"
-          : (map.dropArc && map.dropArc.id === arcShape.arc.id ? Color.accent : map.arcColor(arcShape.arc))
-        strokeWidth: map.bandWidth
-        fillColor: "transparent"
-        capStyle: ShapePath.FlatCap
-        PathAngleArc {
-          centerX: map.width / 2; centerY: map.height / 2
-          radiusX: map.width / 2 - map.bandWidth / 2; radiusY: radiusX
-          startAngle: arcShape.arc ? arcShape.arc.start - 90 : 0
-          sweepAngle: arcShape.arc ? arcShape.arc.sweep : 0
-        }
-      }
+  // The band: arcs, their ripples and their labels. While the desks
+  // reflow (one appears or empties without a switch) it melts into a blur
+  // that peaks halfway and clears as the arcs land in their new places.
+  Item {
+    id: band
+    anchors.fill: parent
+    layer.enabled: map.reflowing
+    layer.effect: MultiEffect {
+      blurEnabled: true
+      blur: map.reflowBlur
+      blurMax: Math.round(24 * map.uiScale)
+      saturation: 0.25 * map.reflowBlur
     }
-  }
 
-  // Working agents: accent rings centred on the disc, crossing their arc
-  // from the inside out, like the rings spreading over a window.
-  Repeater {
-    model: map.arcIds
-    delegate: Item {
-      id: arcRipple
-      required property var modelData
-      readonly property var arc: map.arcFor(modelData)
-      readonly property bool on: arc !== null && arc.state === "working" && !map.switching
-      visible: on
-      anchors.fill: parent
-      layer.enabled: on
-      layer.effect: MultiEffect {
-        maskEnabled: true
-        maskSource: arcMask
-        maskThresholdMin: 0.5
-        maskSpreadAtMin: 1.0
-      }
-
-      readonly property real bandR: map.width / 2 - map.bandWidth / 2
-      // Rings centred on the disc, crossing the band from its inner edge
-      // outwards: waves from the centre, seen through the arc.
-      readonly property real ox: map.width / 2
-      readonly property real oy: map.height / 2
-      readonly property real innerR: map.width / 2 - map.bandWidth
-      readonly property real phase: map.ripplePhase
-
-      Repeater {
-        model: 2
-        delegate: Rectangle {
-          required property int index
-          readonly property real t: (arcRipple.phase + index / 2) % 1
-          readonly property real p: 1 - (1 - t) * (1 - t)
-          readonly property real r: arcRipple.innerR + map.bandWidth * p
-          x: arcRipple.ox - r; y: arcRipple.oy - r
-          width: 2 * r; height: 2 * r
-          radius: r
-          color: "transparent"
-          border.width: 2.5 * map.uiScale
-          border.color: Color.accent
-          opacity: Math.sin(Math.PI * t) * 0.8
-        }
-      }
-
-      Shape {
-        id: arcMask
+    // The repeaters are keyed by workspace id so the switch animation only
+    // moves arcs; it never rebuilds them frame by frame.
+    Repeater {
+      model: map.arcIds
+      delegate: Shape {
+        id: arcShape
+        required property var modelData
+        readonly property var arc: map.arcFor(modelData)
         anchors.fill: parent
-        visible: false
-        layer.enabled: arcRipple.on
+        visible: arc !== null
+        opacity: !arc ? 0 : (arc.leaving ? 1 + (map.pulseFor(arc.state) - 1) * map.settle : map.pulseFor(arc.state))
         preferredRendererType: Shape.CurveRenderer
         ShapePath {
-          strokeColor: "black"
+          strokeColor: !arcShape.arc ? "transparent"
+            : (map.dropArc && map.dropArc.id === arcShape.arc.id ? Color.accent : map.arcColor(arcShape.arc))
           strokeWidth: map.bandWidth
           fillColor: "transparent"
           capStyle: ShapePath.FlatCap
           PathAngleArc {
             centerX: map.width / 2; centerY: map.height / 2
-            radiusX: arcRipple.bandR; radiusY: radiusX
-            startAngle: arcRipple.arc ? arcRipple.arc.start - 90 : 0
-            sweepAngle: arcRipple.arc ? arcRipple.arc.sweep : 0
+            radiusX: map.width / 2 - map.bandWidth / 2; radiusY: radiusX
+            startAngle: arcShape.arc ? arcShape.arc.start - 90 : 0
+            sweepAngle: arcShape.arc ? arcShape.arc.sweep : 0
           }
         }
       }
     }
-  }
 
-  // On each arc, one icon per window side by side along the band, centred on
-  // the arc; "+n" when they do not all fit. Holding Super swaps them for
-  // the desk number, as does a desk whose icons could not be found.
-  Repeater {
-    model: map.arcIds
-    delegate: Item {
-      id: arcLabels
-      required property var modelData
-      readonly property var arc: map.arcFor(modelData)
-      readonly property real dist: map.width / 2 - map.bandWidth / 2
-      readonly property var slots: Model.arcIconSlots(arc, dist, map.bandWidth - 3 * map.uiScale, 2 * map.uiScale)
-      readonly property bool numbered: map.numbersShown || slots.length === 0
-      readonly property color ink: arc && (arc.arriving || (arc.leaving && map.settle < 0.5) || arc.state === "waiting" || arc.state === "done")
-        ? Color.background : Color.foreground
-      anchors.fill: parent
-
-      // Every number at the same size, `map.numberSize`; its ink is
-      // centred on the band.
-      TextMetrics {
-        id: numberRef
-        font.family: Style.fontFamily
-        font.pixelSize: 100
-        font.bold: true
-        text: number.text
-      }
-      Text {
-        id: number
-        readonly property real a: arcLabels.arc ? arcLabels.arc.mid * Math.PI / 180 : 0
-        readonly property rect ink: numberRef.tightBoundingRect
-        readonly property real k: font.pixelSize / 100
-        x: map.width / 2 + arcLabels.dist * Math.sin(a) - (ink.x + ink.width / 2) * k
-        y: map.height / 2 - arcLabels.dist * Math.cos(a) - baselineOffset - (ink.y + ink.height / 2) * k
-        visible: opacity > 0
-        opacity: arcLabels.arc !== null && arcLabels.arc.sweep > 14 && arcLabels.numbered ? 1 : 0
-        Behavior on opacity { NumberAnimation { duration: 150 } }
-        // The scratchpad (negative id) reads "0", as in Spaces.
-        text: arcLabels.modelData < 0 ? "0" : String(arcLabels.modelData)
-        color: arcLabels.ink
-        font.family: Style.fontFamily
-        font.pixelSize: map.numberSize
-        font.bold: true
-      }
-
-      Item {
+    // Working agents: accent rings centred on the disc, crossing their arc
+    // from the inside out, like the rings spreading over a window.
+    Repeater {
+      model: map.arcIds
+      delegate: Item {
+        id: arcRipple
+        required property var modelData
+        readonly property var arc: map.arcFor(modelData)
+        readonly property bool on: arc !== null && arc.state === "working" && !map.switching
+        visible: on
         anchors.fill: parent
-        visible: opacity > 0
-        opacity: arcLabels.numbered ? 0 : 1
-        Behavior on opacity { NumberAnimation { duration: 150 } }
+        layer.enabled: on
+        layer.effect: MultiEffect {
+          maskEnabled: true
+          maskSource: arcMask
+          maskThresholdMin: 0.5
+          maskSpreadAtMin: 1.0
+        }
+
+        readonly property real bandR: map.width / 2 - map.bandWidth / 2
+        // Rings centred on the disc, crossing the band from its inner edge
+        // outwards: waves from the centre, seen through the arc.
+        readonly property real ox: map.width / 2
+        readonly property real oy: map.height / 2
+        readonly property real innerR: map.width / 2 - map.bandWidth
+        readonly property real phase: map.ripplePhase
 
         Repeater {
-          model: arcLabels.slots
-          delegate: Item {
-            required property var modelData
-            readonly property real a: modelData.angle * Math.PI / 180
-            width: map.bandWidth - 6 * map.uiScale; height: width
-            x: map.width / 2 + arcLabels.dist * Math.sin(a) - width / 2
-            y: map.height / 2 - arcLabels.dist * Math.cos(a) - height / 2
+          model: 2
+          delegate: Rectangle {
+            required property int index
+            readonly property real t: (arcRipple.phase + index / 2) % 1
+            readonly property real p: 1 - (1 - t) * (1 - t)
+            readonly property real r: arcRipple.innerR + map.bandWidth * p
+            x: arcRipple.ox - r; y: arcRipple.oy - r
+            width: 2 * r; height: 2 * r
+            radius: r
+            color: "transparent"
+            border.width: 2.5 * map.uiScale
+            border.color: Color.accent
+            opacity: Math.sin(Math.PI * t) * 0.8
+          }
+        }
 
-            Image {
-              anchors.fill: parent
-              visible: modelData.icon !== undefined
-              source: modelData.icon || ""
-              sourceSize.width: 64; sourceSize.height: 64
-              asynchronous: true
-              smooth: true
-              mipmap: true
-            }
-            Text {
-              anchors.centerIn: parent
-              visible: modelData.more !== undefined
-              text: "+" + modelData.more
-              color: arcLabels.ink
-              font.family: Style.fontFamily
-              font.pixelSize: Math.round(9 * map.uiScale)
-              font.bold: true
+        Shape {
+          id: arcMask
+          anchors.fill: parent
+          visible: false
+          layer.enabled: arcRipple.on
+          preferredRendererType: Shape.CurveRenderer
+          ShapePath {
+            strokeColor: "black"
+            strokeWidth: map.bandWidth
+            fillColor: "transparent"
+            capStyle: ShapePath.FlatCap
+            PathAngleArc {
+              centerX: map.width / 2; centerY: map.height / 2
+              radiusX: arcRipple.bandR; radiusY: radiusX
+              startAngle: arcRipple.arc ? arcRipple.arc.start - 90 : 0
+              sweepAngle: arcRipple.arc ? arcRipple.arc.sweep : 0
             }
           }
         }
       }
     }
+
+    // On each arc, one icon per window side by side along the band, centred on
+    // the arc; "+n" when they do not all fit. Holding Super swaps them for
+    // the desk number, as does a desk whose icons could not be found.
+    Repeater {
+      model: map.arcIds
+      delegate: Item {
+        id: arcLabels
+        required property var modelData
+        readonly property var arc: map.arcFor(modelData)
+        readonly property real dist: map.width / 2 - map.bandWidth / 2
+        readonly property var slots: Model.arcIconSlots(arc, dist, map.bandWidth - 3 * map.uiScale, 2 * map.uiScale)
+        readonly property bool numbered: map.numbersShown || slots.length === 0
+        readonly property color ink: arc && (arc.arriving || (arc.leaving && map.settle < 0.5) || arc.state === "waiting" || arc.state === "done")
+          ? Color.background : Color.foreground
+        anchors.fill: parent
+
+        // Every number at the same size, `map.numberSize`; its ink is
+        // centred on the band.
+        TextMetrics {
+          id: numberRef
+          font.family: Style.fontFamily
+          font.pixelSize: 100
+          font.bold: true
+          text: number.text
+        }
+        Text {
+          id: number
+          readonly property real a: arcLabels.arc ? arcLabels.arc.mid * Math.PI / 180 : 0
+          readonly property rect ink: numberRef.tightBoundingRect
+          readonly property real k: font.pixelSize / 100
+          x: map.width / 2 + arcLabels.dist * Math.sin(a) - (ink.x + ink.width / 2) * k
+          y: map.height / 2 - arcLabels.dist * Math.cos(a) - baselineOffset - (ink.y + ink.height / 2) * k
+          visible: opacity > 0
+          opacity: arcLabels.arc !== null && arcLabels.arc.sweep > 14 && arcLabels.numbered ? 1 : 0
+          Behavior on opacity { NumberAnimation { duration: 150 } }
+          // The scratchpad (negative id) reads "0", as in Spaces.
+          text: arcLabels.modelData < 0 ? "0" : String(arcLabels.modelData)
+          color: arcLabels.ink
+          font.family: Style.fontFamily
+          font.pixelSize: map.numberSize
+          font.bold: true
+        }
+
+        Item {
+          anchors.fill: parent
+          visible: opacity > 0
+          opacity: arcLabels.numbered ? 0 : 1
+          Behavior on opacity { NumberAnimation { duration: 150 } }
+
+          Repeater {
+            model: arcLabels.slots
+            delegate: Item {
+              required property var modelData
+              readonly property real a: modelData.angle * Math.PI / 180
+              width: map.bandWidth - 6 * map.uiScale; height: width
+              x: map.width / 2 + arcLabels.dist * Math.sin(a) - width / 2
+              y: map.height / 2 - arcLabels.dist * Math.cos(a) - height / 2
+
+              Image {
+                anchors.fill: parent
+                visible: modelData.icon !== undefined
+                source: modelData.icon || ""
+                sourceSize.width: 64; sourceSize.height: 64
+                asynchronous: true
+                smooth: true
+                mipmap: true
+              }
+              Text {
+                anchors.centerIn: parent
+                visible: modelData.more !== undefined
+                text: "+" + modelData.more
+                color: arcLabels.ink
+                font.family: Style.fontFamily
+                font.pixelSize: Math.round(9 * map.uiScale)
+                font.bold: true
+              }
+            }
+          }
+        }
+      }
+    }
+
   }
 
   // A workspace on the inner disc. Each window is drawn as its rectangle
@@ -521,7 +537,8 @@ Item {
   readonly property bool switching: t < 1
   readonly property real bandR: map.width / 2 - map.bandWidth / 2
   readonly property real dotScale: map.bandWidth / (map.width - 2 * map.inset)
-  readonly property var shownArcs: map.switching ? Model.blendArcs(map.fromArcs, map.arcs, map.t) : map.arcs
+  readonly property var shownArcs: map.switching ? Model.blendArcs(map.fromArcs, map.arcs, map.t)
+    : map.reflowing ? Model.blendArcs(map.reflowFrom, map.arcs, map.rt) : map.arcs
   // Each disc rides the middle of its own arc as that arc opens or closes.
   readonly property real leavingAngle: map.arcAngle(map.shownArcs, map.leavingId, map.arcAngle(map.arcs, map.leavingId, 0))
   readonly property real arrivingAngle: map.arcAngle(map.shownArcs, map.arrivingId, map.arcAngle(map.fromArcs, map.arrivingId, map.leavingAngle + 180))
@@ -543,7 +560,37 @@ Item {
 
   // Keep the layout from before the switch: arcs and terrain both follow
   // the current workspace, in either order.
-  onArcsChanged: { map.olderArcs = map.latestArcs; map.latestArcs = map.arcs }
+  onArcsChanged: {
+    map.startReflow(map.latestArcs)
+    map.olderArcs = map.latestArcs
+    map.latestArcs = map.arcs
+  }
+
+  // Reflow: the desks around the disc change (one appears or empties)
+  // without a switch. Only the ordered ids set the geometry (equal arcs),
+  // so state or icon changes never trigger it. A switch wins over it.
+  property var reflowFrom: []
+  property real rt: 1               // 0 → 1 over the reflow
+  readonly property bool reflowing: rt < 1
+  readonly property real reflowBlur: Math.sin(Math.PI * map.rt)
+  function arcKey(arcs) { return arcs.map(function(a) { return a.id }).join(",") }
+  function startReflow(previous) {
+    if (map.switching || !map.visible || previous.length === 0) return
+    if (map.arcKey(previous) === map.arcKey(map.arcs)) return
+    // Mid-reflow: start again from where the arcs are now.
+    var from = map.reflowing ? Model.blendArcs(map.reflowFrom, previous, map.rt) : previous
+    if (Style.reduceMotion) { reflowAnim.stop(); map.rt = 1; return }
+    map.reflowFrom = from
+    reflowAnim.restart()
+  }
+  NumberAnimation {
+    id: reflowAnim
+    target: map
+    property: "rt"
+    from: 0; to: 1
+    duration: 520
+    easing.type: Easing.InOutCubic
+  }
 
   onTerrainChanged: {
     var next = map.terrain || { id: -1, windows: [] }
@@ -552,6 +599,8 @@ Item {
       map.leavingId = map.shownId
       map.arrivingId = next.id
       map.fromArcs = map.arcAngle(map.latestArcs, next.id, null) !== null ? map.latestArcs : map.olderArcs
+      reflowAnim.stop()
+      map.rt = 1
       switchAnim.restart()
     }
     map.shownId = next.id
