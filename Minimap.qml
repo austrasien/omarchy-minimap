@@ -225,7 +225,12 @@ Item {
   }
 
   property bool dialHovered: false
-  function hoverDesk(id) { if (id) holdOsd(deskOsd(id)); else releaseOsd() }
+  // Lets go only of its own OSD, not one a rim band holds meanwhile.
+  property var deskHeld: null
+  function hoverDesk(id) {
+    if (id) { holdOsd(deskOsd(id)); deskHeld = heldOsd }
+    else if (deskHeld) { releaseOsd(deskHeld); deskHeld = null }
+  }
   property bool batteryHovered: false
 
   // ------------------------------------------------------------ tile cache
@@ -1516,7 +1521,9 @@ Item {
     heldOsd = h
     return openOsd(h)
   }
-  function releaseOsd() {
+  // With `which`, only if that one is still the held OSD.
+  function releaseOsd(which) {
+    if (which && which !== heldOsd) return
     var was = heldOsd
     heldOsd = null
     if (was && osd === was) osdOpen = false

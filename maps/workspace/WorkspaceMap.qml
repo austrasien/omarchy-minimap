@@ -154,8 +154,16 @@ Item {
 
   // Band: click goes to the workspace under the pointer.
   MouseArea {
+    id: deskArea
     anchors.fill: parent
     hoverEnabled: true
+    // Only the disc: the square's corners lie under the rim bands, whose
+    // own hover (and OSD) this would otherwise fight.
+    containmentMask: QtObject {
+      function contains(p: point): bool {
+        return Math.hypot(p.x - deskArea.width / 2, p.y - deskArea.height / 2) <= deskArea.width / 2
+      }
+    }
     readonly property var arc: {
       if (!containsMouse) return null
       var dx = mouseX - width / 2, dy = mouseY - height / 2
